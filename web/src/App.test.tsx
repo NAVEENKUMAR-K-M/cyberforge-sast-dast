@@ -160,12 +160,14 @@ describe("analyst workspace", () => {
   });
 
   it("explains report-loading failures and offers retry", async () => {
+    // Only the report fails. The scan launcher's own requests succeed, so only the report view shows an alert.
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => ({
-        ok: false,
-        json: async () => ({ detail: "No report found." }),
-      })),
+      vi.fn(async (url: string) =>
+        String(url).startsWith("/api/report")
+          ? { ok: false, json: async () => ({ detail: "No report found." }) }
+          : { ok: true, json: async () => ({ targets: [], scans: [] }) },
+      ),
     );
     render(<App />);
     expect(await screen.findByRole("alert")).toHaveProperty(
