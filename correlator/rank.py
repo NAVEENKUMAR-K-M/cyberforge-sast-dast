@@ -60,20 +60,29 @@ def assess(issue: dict) -> dict:
         metrics["AC"] = "H"
         factors.append("AC:H, the input is a header or cookie another site can't set for its victim")
 
-    verification = {f["runtime"]["verification"] for f in issue["evidence"]["runtime"]}
-    if "confirmed" in verification:
+    # What the runtime evidence shows comes from the checks in evidence.py, not from the scanner's own
+    # confidence tier.
+    verification = issue["runtime_verification"]
+    reasons = {c["level"]: c["reason"] for c in verification["checks"]}
+    if verification["level"] == "validated":
         metrics["E"] = "F"
-        factors.append("E:F, a runtime test exploited it")
-    elif verification:
+        factors.append("E:F, " + reasons["validated"])
+    elif verification["level"] in ("partial", "unchecked"):
         metrics["E"] = "P"
-        factors.append("E:P, a runtime test showed it but didn't fully exploit it")
+        factors.append("E:P, " + reasons[verification["level"]])
     else:
         metrics["E"] = "U"
         factors.append("E:U, found by code analysis only, not exploited")
 
-    if issue["label"] == "Confirmed" or "confirmed" in verification:
+    if issue["label"] == "Confirmed":
         metrics["RC"] = "C"
-        factors.append("RC:C, " + ("found in both the code and the running app" if issue["label"] == "Confirmed" else "confirmed by a runtime test"))
+        factors.append("RC:C, found in both the code and the running app")
+    elif issue.get("conflict"):
+        metrics["RC"] = "R"
+        factors.append("RC:R, a runtime test shows it but the code was marked safe, so the scanners disagree")
+    elif verification["level"] == "validated":
+        metrics["RC"] = "C"
+        factors.append("RC:C, shown by a runtime check")
     elif issue["confidence"] == "low":
         metrics["RC"] = "U"
         factors.append("RC:U, low-confidence code analysis")

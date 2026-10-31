@@ -203,8 +203,19 @@ python main.py verify --target http://localhost:8080 --config dvwa.yaml \
   --cwe CWE-89 --method GET --route /vulnerabilities/sqli/ --param id
 ```
 
-This prints `{"reproduced": true|false, "finding": ...}` on stdout. `--selector`
-and `--param-location` are optional. `api.py` explains how to call it in-process.
+This prints one JSON line on stdout: `reproduced`, the native `finding`, the same finding as
+`finding_common` (the shared format), and `attempts`, every request the re-test sent with its
+status and size (passwords, tokens and cookies are masked). No requests in `attempts` means the
+route was out of scope or denylisted, which is a block, not a negative result. `--selector` and
+`--param-location` are optional. `api.py` explains how to call it in-process.
+
+Two options let a caller shape the request when a generic probe can't. Neither changes where it goes:
+
+- `--field name=value` (repeatable) sends another value the request needs, such as the `password`
+  a login handler reads before it runs its query.
+- `--hint SHAPE` is tried before the probe's own payloads. Use `{canary}` for a redirect, `{marker}`
+  for XSS and a traversal prefix such as `....//....//` for path traversal. It is 1 to 200 printable
+  characters on one line.
 
 ## Verification
 

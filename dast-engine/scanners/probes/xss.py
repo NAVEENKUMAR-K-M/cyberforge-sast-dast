@@ -15,7 +15,7 @@ import re
 from core.models import Baseline, Confidence, Evidence, Finding, InjectionPoint, Severity
 from core.request_manager import RequestManager
 from scanners.probes.base import Probe
-from scanners.probes.util import build_request, load_payloads, random_marker
+from scanners.probes.util import build_request, load_payloads, random_marker, verify_point
 
 logger = logging.getLogger("dast.probes.xss")
 
@@ -84,8 +84,9 @@ class XssProbe(Probe):
 
         marker = random_marker()
         reflected = False
-        for template in self._payloads.get("marker_payloads", []):
-            payload = template.format(marker=marker)
+        hint = point.meta.get("payload_hint")  # a shape with {marker}, tried first
+        for template in ([hint] if hint else []) + self._payloads.get("marker_payloads", []):
+            payload = template.replace("{marker}", marker) if template == hint else template.format(marker=marker)
             url, kwargs = build_request(point, payload)
             resp = await rm.send(point.method, url, **kwargs)
             if resp is None or not _renders_as_markup(resp):
@@ -142,12 +143,7 @@ class XssProbe(Probe):
                 )
         return None
 
-    async def verify(self, rm: RequestManager, method: str, url: str, route_template: str, param: str | None, param_location: str) -> Finding | None:
-        from core.models import ParamLocation
-
-        point = InjectionPoint(
-            method=method, url=url, route_template=route_template, param=param or "",
-            param_location=ParamLocation(param_location) if param_location else ParamLocation.QUERY,
-        )
+    async def verify(self, rm: RequestManager, method: str, url: str, route_template: str, param: str | None, param_location: str, fields: dict | None = None, hint: str | None = None) -> Finding | None:
+        point = verify_point(method, url, route_template, param, param_location, fields, hint)
         findings = await self.detect(rm, point, baseline=None, hinted=True)
         return findings[0] if findings else None

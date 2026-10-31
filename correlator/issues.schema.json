@@ -27,7 +27,17 @@
         "properties": {
           "dast_ids": {"$ref": "#/$defs/ids"},
           "sast_ids": {"$ref": "#/$defs/ids"},
-          "reason": {"type": "string"}
+          "reason": {"type": "string"},
+          "issue_id": {"type": "string", "description": "The ranked Runtime only issue that also carries this conflict, when the runtime evidence is validated."},
+          "runtime_verification": {"$ref": "#/$defs/runtime_verification"},
+          "evidence": {
+            "type": "object",
+            "required": ["code", "runtime"],
+            "properties": {
+              "code": {"type": "array", "items": {"type": "object"}},
+              "runtime": {"type": "array", "items": {"type": "object"}}
+            }
+          }
         }
       }
     },
@@ -47,10 +57,32 @@
       }
     },
     "diagnostics": {"type": "array", "items": {"type": "string"}},
-    "stats": {"type": "object"}
+    "stats": {"type": "object"},
+    "investigations": {
+      "type": "array",
+      "description": "Live re-tests of unresolved cases: each round's plan, the requests actually sent, the outcome, the evidence level and what it did to the issue.",
+      "items": {"type": "object", "required": ["case_id", "kind", "issue_id", "source", "rounds", "outcome", "stop_reason"]}
+    }
   },
   "$defs": {
     "ids": {"type": "array", "items": {"type": "string"}},
+    "level": {"enum": ["none", "unchecked", "partial", "validated"]},
+    "runtime_verification": {
+      "type": "object",
+      "description": "What the recorded runtime evidence shows, from correlator/evidence.py, not the scanner's own tier.",
+      "required": ["level", "checks"],
+      "properties": {
+        "level": {"$ref": "#/$defs/level"},
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["dast_id", "level", "reason"],
+            "properties": {"dast_id": {"type": "string"}, "level": {"$ref": "#/$defs/level"}, "reason": {"type": "string"}}
+          }
+        }
+      }
+    },
     "input": {
       "type": "object",
       "required": ["path", "target"],
@@ -92,6 +124,15 @@
         "params": {"type": "array", "items": {"type": "object"}},
         "sast_ids": {"$ref": "#/$defs/ids"},
         "dast_ids": {"$ref": "#/$defs/ids"},
+        "runtime_verification": {"$ref": "#/$defs/runtime_verification"},
+        "investigation": {
+          "type": "object",
+          "description": "The outcome of re-testing this issue; the rounds are under investigations.",
+          "required": ["case_id", "outcome", "stop_reason", "rounds"],
+          "properties": {"case_id": {"type": "string"}, "outcome": {"type": "string"}, "stop_reason": {"type": ["string", "null"]}, "rounds": {"type": "integer"}}
+        },
+        "conflict": {"type": "boolean", "description": "The runtime evidence shows the weakness, but the code was marked safe."},
+        "conflict_with": {"$ref": "#/$defs/ids"},
         "evidence": {
           "type": "object",
           "required": ["code", "runtime"],

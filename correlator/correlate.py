@@ -14,6 +14,7 @@ from urllib.parse import parse_qsl, urlparse
 
 import jsonschema
 
+from correlator import evidence
 from correlator.rank import rank
 
 SCHEMA_VERSION = "1.0"
@@ -94,6 +95,18 @@ def _route_kind(route: dict, path: str) -> str | None:
     return None
 
 
+def _route_views(route: dict, base: str) -> list:
+    """SAST's --base-path puts the prefix on code routes and the DAST target URL carries it on runtime
+    routes. Try the code route as written and without the prefix, so either tool may have added it."""
+    views = [route]
+    if base:
+        bare = {**route, "path": _strip_base(route["path"], base),
+                "aliases": [_strip_base(a, base) for a in route.get("aliases", [])]}
+        if bare != route:
+            views.append(bare)
+    return views
+
+
 def _selector_ok(code_selector, runtime_selector, url_query: dict) -> bool:
     """A code route reached only through `?action=view` matches only a test of that page."""
     if not code_selector:
@@ -106,7 +119,7 @@ def _location_ok(code: str, runtime: str) -> bool:
     return code == runtime or (code == "any" and runtime in ("query", "body")) or "unknown" in (code, runtime)
 
 
-def _match(dast: dict, sast: dict, dast_path: str):
+def _match(dast: dict, sast: dict, dast_path: str, base: str = ""):
     """Returns (strength, basis) when this code finding explains this runtime finding, else None.
     "strong" means the parameter is named on both sides. "weak" means the code only knows the
     input came from somewhere in the request (`*`), which isn't enough to merge on."""
@@ -124,12 +137,15 @@ def _match(dast: dict, sast: dict, dast_path: str):
     write_routes = (((sast.get("code") or {}).get("stored_flow") or {}).get("write_routes")) or []
     best = None
     for route, stored in [(r, False) for r in sast["routes"]] + [(r, True) for r in write_routes]:
-        kind = _route_kind(route, dast_path)
-        if kind is None or not _selector_ok(route.get("selector"), dast["routes"][0]["selector"], query):
+        if not _selector_ok(route.get("selector"), dast["routes"][0]["selector"], query):
             continue
-        kind = "stored-write" if stored else kind
-        candidate = (MATCH_KINDS.index(kind), route["path"], route.get("selector") or "", kind)
-        best = candidate if best is None else min(best, candidate)
+        for view in _route_views(route, base):
+            kind = _route_kind(view, dast_path)
+            if kind is None:
+                continue
+            kind = "stored-write" if stored else kind
+            candidate = (MATCH_KINDS.index(kind), view["path"], route.get("selector") or "", kind)
+            best = candidate if best is None else min(best, candidate)
     if best is None:
         return None
     return strength, {"kind": best[3], "code_route": best[1], "selector": best[2] or None,
@@ -138,9 +154,18 @@ def _match(dast: dict, sast: dict, dast_path: str):
 
 # ---- grouping (FR-6) ----
 
+def _carrier(f: dict) -> tuple:
+    """Where the value that reaches this sink was last produced: the last step of its trace before
+    the sink. Two sinks fed by the same built value share it. Two separately built statements don't."""
+    steps = [t for t in f["code"]["trace"] if not t["note"].startswith("reaches sink")]
+    return (steps[-1]["file"], steps[-1]["line"], steps[-1]["note"]) if steps else ()
+
+
 def _code_groups(findings: list) -> list:
-    """One bug in the code can have several sinks, such as the same query in two branches. Open
-    findings with the same family, in the same function, sharing an input name, are one bug."""
+    """One bug in the code can reach several sinks, such as one built query used twice. Open findings
+    with the same family, in the same function, sharing an input name and fed by the same built value,
+    are one bug. Separately built statements are different bugs even when they use the same input:
+    each needs its own fix, and a runtime test can't tell which one it hit."""
     parent = {f["id"]: f["id"] for f in findings}
 
     def root(x):
@@ -151,7 +176,7 @@ def _code_groups(findings: list) -> list:
 
     by_place = defaultdict(list)
     for f in findings:
-        by_place[(f["cwe_family"], f["code"]["file"], f["code"]["function"])].append(f)
+        by_place[(f["cwe_family"], f["code"]["file"], f["code"]["function"], _carrier(f))].append(f)
     for members in by_place.values():
         for i, a in enumerate(members):
             for b in members[i + 1:]:
@@ -164,16 +189,15 @@ def _code_groups(findings: list) -> list:
 
 
 def _runtime_groups(findings: list, base: str):
-    """One input can be found several ways, such as by GET in the query and by POST in the body.
-    Endpoint findings for the same family, route, page and parameter are one bug."""
+    """Several sightings of one input are one observation: the same family, route, page, parameter and
+    place in the request. A query sighting and a body sighting stay separate, since they are different
+    requests, and join one issue only when they link to the same code bug."""
     groups = defaultdict(list)
     others = []
     for f in findings:
         if f["scope"] == "endpoint" and f["params"] and f["routes"]:
             route = f["routes"][0]
             param = f["params"][0]
-            # Keep locations separate. If a query finding matches a SAST input,
-            # a same-named body finding must not be attached as its evidence.
             key = (f["cwe_family"], _strip_base(route["path"], base), route["selector"] or "",
                    param["name"], param["location"])
             groups[key].append(f)
@@ -193,18 +217,18 @@ def _merged_routes(findings: list, base: str) -> list:
     merged = {}
     for f in findings:
         for r in f["routes"]:
-            path = _strip_base(r["path"], base) if f["source"] == "dast" else r["path"]
+            path = _strip_base(r["path"], base)
             entry = merged.setdefault((path, r["selector"] or ""), {"path": path, "aliases": set(), "selector": r["selector"], "methods": set()})
             entry["aliases"].update(r.get("aliases", []))
             entry["methods"].update(r["methods"])
     return [{**e, "aliases": sorted(e["aliases"]), "methods": sorted(e["methods"])} for _, e in sorted(merged.items())]
 
 
-def _issue(issue_id, label, code, runtime, base, ambiguous=False, candidates=()):
+def _issue(issue_id, label, code, runtime, base, ambiguous=False, candidates=(), conflict_with=()):
     members = code + runtime
     lead = code[0] if code else runtime[0]
     params = {(p["name"], p["location"]): p for f in members for p in f["params"]}
-    return {
+    issue = {
         "issue_id": issue_id,
         "label": label,
         "cwe": lead["cwe"],
@@ -222,8 +246,13 @@ def _issue(issue_id, label, code, runtime, base, ambiguous=False, candidates=())
         "params": [dict(params[k]) for k in sorted(params)],
         "sast_ids": [f["id"] for f in code],
         "dast_ids": [f["id"] for f in runtime],
+        "runtime_verification": evidence.assess(runtime),
         "evidence": {"code": code, "runtime": runtime},
     }
+    if conflict_with:
+        issue["conflict"] = True
+        issue["conflict_with"] = sorted(conflict_with)
+    return issue
 
 
 def _base_path(explicit, dast_doc) -> str:
@@ -248,7 +277,7 @@ def correlate(sast_doc: dict, dast_doc: dict, base_path: str | None = None, sour
         strong, weak, bases = set(), set(), []
         for d in members:
             for s in open_code:
-                found = _match(d, s, path)
+                found = _match(d, s, path, base)
                 if found is None:
                     continue
                 strength, basis = found
@@ -271,13 +300,23 @@ def correlate(sast_doc: dict, dast_doc: dict, base_path: str | None = None, sour
             })
             continue
         if not strong:
-            safe = sorted({s["id"] for d in members for s in suppressed if _match(d, s, path)})
+            safe = [s for s in suppressed if any(_match(d, s, path, base) for d in members)]
             if safe:
-                # The runtime says exploitable, the code says protected: one of them is wrong, so a
-                # person decides. Not an issue, so a decoy SAST got right doesn't count as reported.
-                reasons = sorted({s["code"]["suppression_reason"] for s in suppressed if s["id"] in safe})
-                conflicts.append({"dast_ids": [f["id"] for f in members], "sast_ids": safe,
-                                  "reason": "The code was marked safe (" + "; ".join(reasons) + "), but a runtime test reported it"})
+                # The runtime says exploitable, the code says protected: neither side decides. The
+                # record keeps both sides' full evidence. A runtime finding whose evidence shows the
+                # weakness itself is also ranked as a Runtime only issue, flagged as a conflict.
+                reasons = sorted({s["code"]["suppression_reason"] for s in safe})
+                verification = evidence.assess(members)
+                record = {"dast_ids": [f["id"] for f in members], "sast_ids": [s["id"] for s in safe],
+                          "reason": "The code was marked safe (" + "; ".join(reasons) + "), but a runtime test reported it",
+                          "runtime_verification": verification,
+                          "evidence": {"code": safe, "runtime": members}}
+                if verification["level"] == "validated":
+                    issue = _issue(_hash("issue", ["runtime", *key]), "Runtime only", [], members, base,
+                                   conflict_with=[s["id"] for s in safe])
+                    runtime_only.append(issue)
+                    record["issue_id"] = issue["issue_id"]
+                conflicts.append(record)
                 continue
         candidates = [code_ids[i] for i in (strong or weak)]
         issue_id = _hash("issue", ["runtime", *key])
@@ -292,11 +331,18 @@ def correlate(sast_doc: dict, dast_doc: dict, base_path: str | None = None, sour
     issues = rank(issues)
 
     diagnostics = []
-    code_paths = {p for f in open_code for r in f["routes"] for p in [r["path"], *r.get("aliases", [])]}
+    code_paths = {p for f in open_code for r in f["routes"] for v in _route_views(r, base) for p in [v["path"], *v.get("aliases", [])]}
     runtime_paths = {key[1] for key in runtime_groups}
     if code_paths and runtime_paths and not any(_route_kind({"path": c, "aliases": []}, r) for c in code_paths for r in runtime_paths):
         diagnostics.append("No runtime route matches any code route. The reports may be for different deployments, "
                            "or the app may be served under a base path (--base-path).")
+
+    coverage = (dast_doc.get("stats") or {}).get("coverage") or {}
+    reachable = coverage.get("points_found", 0) - coverage.get("points_dropped_by_scope", 0)
+    if coverage and (coverage.get("deadline_reached") or coverage.get("points_tested", 0) < reachable):
+        diagnostics.append(f"The runtime scan tested {coverage.get('points_tested', 0)} of {reachable} reachable inputs"
+                           + (" and ran out of time" if coverage.get("deadline_reached") else "")
+                           + ". A Code only issue means no runtime proof was found, not that it was tested and found safe.")
 
     labels = Counter(i["label"] for i in issues)
     return {
@@ -321,6 +367,8 @@ def correlate(sast_doc: dict, dast_doc: dict, base_path: str | None = None, sour
             "links": len(link_records),
             "ambiguous": sum(1 for i in issues if i["ambiguous"]),
             "conflicts": len(conflicts),
+            "conflict_issues": sum(1 for i in issues if i.get("conflict")),
             "suppressed": len(suppressed),
+            "runtime_coverage": coverage,
         },
     }

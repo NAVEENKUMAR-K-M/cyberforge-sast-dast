@@ -15,7 +15,7 @@ import re
 from core.models import Baseline, Confidence, Evidence, Finding, InjectionPoint, Severity
 from core.request_manager import RequestManager
 from scanners.probes.base import Probe
-from scanners.probes.util import build_request, load_payloads, random_marker
+from scanners.probes.util import build_request, load_payloads, random_marker, verify_point
 
 logger = logging.getLogger("dast.probes.path_traversal")
 
@@ -27,12 +27,18 @@ class PathTraversalProbe(Probe):
     def __init__(self):
         self._payloads = load_payloads("path_traversal.yaml")
 
-    def _candidate_payloads(self):
+    def _candidate_payloads(self, hint: str | None = None):
         depths = self._payloads.get("depths", [])
         targets = self._payloads.get("unix_targets", []) + self._payloads.get("windows_targets", [])
         all_seqs = self._payloads.get("traversal_sequences", [])
         plain_seqs = [s for s in all_seqs if s in ("../", "..\\")]
         exotic_seqs = [s for s in all_seqs if s not in plain_seqs]
+
+        # A hinted traversal sequence (such as one that survives a filter) goes first, ahead
+        # of the generic ones, with every target file.
+        if hint:
+            for target in targets:
+                yield hint + target["path"], target["signature"]
 
         # Cheapest, highest-signal first: an absolute path needs no depth
         # guessing at all, and the two plain traversal sequences cover the
@@ -76,7 +82,7 @@ class PathTraversalProbe(Probe):
         max_tier2 = 80
         limit = max_tier2 if hinted else max_tier1
 
-        for payload, signature in self._candidate_payloads():
+        for payload, signature in self._candidate_payloads(point.meta.get("payload_hint")):
             if tried >= limit:
                 break
             tried += 1
@@ -161,12 +167,7 @@ class PathTraversalProbe(Probe):
                 )]
         return []
 
-    async def verify(self, rm: RequestManager, method: str, url: str, route_template: str, param: str | None, param_location: str) -> Finding | None:
-        from core.models import ParamLocation
-
-        point = InjectionPoint(
-            method=method, url=url, route_template=route_template, param=param or "",
-            param_location=ParamLocation(param_location) if param_location else ParamLocation.QUERY,
-        )
+    async def verify(self, rm: RequestManager, method: str, url: str, route_template: str, param: str | None, param_location: str, fields: dict | None = None, hint: str | None = None) -> Finding | None:
+        point = verify_point(method, url, route_template, param, param_location, fields, hint)
         findings = await self.detect(rm, point, baseline=None, hinted=True)
         return findings[0] if findings else None

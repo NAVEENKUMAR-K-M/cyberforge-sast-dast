@@ -25,6 +25,19 @@ def load_payloads(filename: str) -> dict:
     return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
 
 
+def verify_point(method, url, route_template, param, param_location, fields=None, hint=None) -> InjectionPoint:
+    """The point a re-test targets. `fields` are the other values the request needs, such as a login
+    form's password. `hint` is a payload shape a probe tries before its own (see the probes)."""
+    point = InjectionPoint(
+        method=method, url=url, route_template=route_template, param=param or "",
+        param_location=ParamLocation(param_location) if param_location else ParamLocation.QUERY,
+        body_template=dict(fields) if fields else None,
+    )
+    if hint:
+        point.meta["payload_hint"] = hint
+    return point
+
+
 def _location_value(point: InjectionPoint) -> str:
     loc = point.param_location
     return loc.value if isinstance(loc, ParamLocation) else str(loc)

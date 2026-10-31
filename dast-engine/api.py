@@ -20,6 +20,8 @@ are two ways in:
 from __future__ import annotations
 
 import logging
+import re
+import time
 from urllib.parse import parse_qsl, urlencode
 
 from core.request_manager import Budget, RequestManager
@@ -52,6 +54,9 @@ async def verify(
     config: dict,
     param_location: str = "query",
     selector: str | None = None,
+    fields: dict | None = None,
+    hint: str | None = None,
+    attempts_out: list | None = None,
 ) -> dict | None:
     """Re-test one specific (cwe, method, route, param) tuple live.
 
@@ -59,6 +64,11 @@ async def verify(
     otherwise None. Builds a fresh, logged-in RequestManager and calls the
     matching probe's verify() directly -- no full crawl/discovery needed,
     so this stays fast enough to call per hint.
+
+    `fields` are other values the request needs (a login form's password) and
+    `hint` is a payload shape the probe tries first: {canary} for a redirect,
+    {marker} for XSS, a traversal prefix for path traversal. If `attempts_out`
+    is a list, every request the probe sends is appended to it (secrets masked).
     """
     probe_cls = _PROBE_BY_CWE.get(cwe)
     if probe_cls is None:
@@ -81,8 +91,10 @@ async def verify(
 
         await login(rm, config.get("auth", {}))
 
+        if attempts_out is not None:
+            _record_requests(rm, attempts_out)
         probe = probe_cls()
-        finding = await probe.verify(rm, method, url, route, param, param_location)
+        finding = await probe.verify(rm, method, url, route, param, param_location, fields=fields, hint=hint)
     finally:
         await rm.aclose()
 
@@ -90,3 +102,32 @@ async def verify(
         return None
     finding.selector = selector
     return finding.to_dict()
+
+
+_SECRET_KEY = re.compile(r"pass|pwd|secret|token|auth|cookie|csrf", re.I)
+MAX_RECORDED = 100
+
+
+def _record_requests(rm: RequestManager, out: list) -> None:
+    """Wraps rm.send so each request a re-test makes is kept: what was sent, and the status and size
+    that came back. Called after login, so credentials never appear."""
+    send = rm.send
+
+    def masked(values):
+        return {k: ("[masked]" if _SECRET_KEY.search(str(k)) else v) for k, v in (values or {}).items()}
+
+    async def recording_send(method, url, **kwargs):
+        started = time.monotonic()
+        response = await send(method, url, **kwargs)
+        if len(out) < MAX_RECORDED:
+            out.append({
+                "method": method, "url": url,
+                "query": masked(kwargs.get("params")), "body": masked(kwargs.get("data") or kwargs.get("json")),
+                "status": response.status_code if response is not None else None,
+                "length": len(response.text) if response is not None else None,
+                "excerpt": response.text[:160] if response is not None else None,
+                "seconds": round(time.monotonic() - started, 2),
+            })
+        return response
+
+    rm.send = recording_send

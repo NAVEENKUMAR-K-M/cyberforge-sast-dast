@@ -46,7 +46,10 @@ class Probe(ABC):
         route_template: str,
         param: str | None,
         param_location: str,
+        fields: dict | None = None,
+        hint: str | None = None,
     ) -> Finding | None:
         """Re-test one specific point on demand (api.verify(), bonus B-1).
+        `fields` are other values the request needs; `hint` is a payload shape to try first.
         Returns a Finding if the vulnerability reproduces, else None."""
         raise NotImplementedError
