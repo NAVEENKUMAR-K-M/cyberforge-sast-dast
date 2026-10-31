@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass, field
-from urllib.parse import urljoin
+from urllib.parse import urldefrag, urljoin
 
 from bs4 import BeautifulSoup
 
@@ -18,6 +18,20 @@ from core.scope_guard import ScopeGuard
 logger = logging.getLogger("dast.crawler")
 
 JS_URL_RE = re.compile(r"""["'](/[A-Za-z0-9_\-/.]+?)["']""")
+
+# Static-asset extensions worth recording for passive checks (e.g. an
+# exposed backup) but not worth spending crawl-queue slots following links
+# *to* — they're never an injection surface and, on a doc-heavy app, can
+# otherwise consume the entire page budget before the real routes are seen.
+_SKIP_FOLLOW_EXT = (
+    ".md", ".pdf", ".zip", ".dist", ".ini", ".log", ".tar", ".gz",
+    ".jpg", ".jpeg", ".png", ".gif", ".svg", ".ico", ".css", ".woff", ".woff2",
+)
+
+
+def _should_follow(url: str) -> bool:
+    path = url.split("?")[0].lower()
+    return not path.endswith(_SKIP_FOLLOW_EXT)
 
 
 @dataclass
@@ -84,7 +98,7 @@ async def crawl(
 ) -> CrawlResult:
     result = CrawlResult()
     visited: set[str] = set()
-    queue: list[str] = list(seed_urls)
+    queue: list[str] = [urldefrag(u)[0] for u in seed_urls]
 
     base = seed_urls[0] if seed_urls else ""
     await _fetch_robots_sitemap(rm, base, result.urls)
@@ -121,13 +135,15 @@ async def crawl(
 
         soup = BeautifulSoup(html, "lxml")
         for a in soup.find_all("a", href=True):
-            link = urljoin(url, a["href"])
-            if scope_guard.is_in_scope(link) and link not in visited:
+            # Strip the fragment: it's never sent on the wire, so '#foo' and
+            # '#bar' on the same page are the same request, not two pages.
+            link = urldefrag(urljoin(url, a["href"]))[0]
+            if scope_guard.is_in_scope(link) and link not in visited and _should_follow(link):
                 queue.append(link)
 
         for match in JS_URL_RE.finditer(html):
-            candidate = urljoin(url, match.group(1))
-            if scope_guard.is_in_scope(candidate) and candidate not in visited:
+            candidate = urldefrag(urljoin(url, match.group(1)))[0]
+            if scope_guard.is_in_scope(candidate) and candidate not in visited and _should_follow(candidate):
                 queue.append(candidate)
 
     return result

@@ -14,8 +14,15 @@ floor_rps: 5
 verify_tls: false
 max_pages: 200
 
-active_backend: zap
+active_backend: python   # custom Python probes (sqli/xss/cmdi/path_traversal/open_redirect)
+
+# Only relevant if active_backend is switched to "zap":
 zap_api_url: "http://localhost:8090"
+# docker-compose.dev.yml runs ZAP in its own container, where "localhost"
+# means the ZAP container itself. Reach DVWA via its compose service name
+# on the shared network instead; zap_runner.py rewrites result URLs back
+# onto `target` (localhost:8080) before they reach the output schema.
+zap_scan_target: "http://dvwa:80"
 
 route_map_path: null
 hints_path: null
@@ -41,10 +48,24 @@ auth:
   extra_fields:
     Login: "Login"
   success_indicator: "!Login"   # "Login" string must be ABSENT after success
+  # DVWA stores its difficulty level per-session, so a fresh login always
+  # resets it to "impossible" (no exploitable bugs). Pin it to "low" once,
+  # right after login, as part of session setup -- not a mid-crawl action.
+  post_login:
+    - url: "http://localhost:8080/security.php"
+      fields:
+        security: "low"
+        seclev_submit: "Submit"
 
 denylist:
   - "logout.php"
   - "setup.php"
   - "security.php"   # avoid flipping the security level mid-scan
-  - "csrf"
+  # DVWA's CSRF demo page is a GET-based password-change endpoint
+  # (?Change=Change&password_new=...&password_conf=...). A spider that
+  # auto-submits discovered GET forms with placeholder values will
+  # genuinely change the logged-in user's password here (confirmed in
+  # testing). CWE-352 isn't one of the 5 CWEs this scanner targets, so it's
+  # excluded entirely rather than risking the session account.
+  - "vulnerabilities/csrf"
   - "captcha"

@@ -1,0 +1,31 @@
+# OS command injection probe (CWE-78). Each payload pairs a shell
+# separator with a harmless computed marker (an arithmetic expression,
+# not a fixed string) so the probe can tell "the command ran" apart from
+# "the marker text was just echoed back unexecuted" -- the computed result
+# only appears in the response if the separator actually broke out into a
+# new command.
+#
+# {a} and {b} are two random small integers chosen per probe call; a
+# successful injection causes the app to run `expr {a} + {b}` (or the
+# Windows equivalent) and the probe looks for the SUM in the response,
+# not the payload text itself.
+
+unix_separators:
+  - ";"
+  - "|"
+  - "&&"
+  - "$({cmd})"
+  - "`{cmd}`"
+
+windows_separators:
+  - "&"
+  - "|"
+  - "&&"
+
+unix_command_template: "expr {a} + {b}"
+windows_command_template: "set /a {a}+{b}"
+
+# Time-based fallback (serial, tier-2 only): a deliberate sleep whose
+# duration is clearly distinguishable from normal response latency.
+sleep_unix_template: "sleep {sleep}"
+sleep_windows_template: "ping -n {sleep_plus_one} 127.0.0.1 >nul"

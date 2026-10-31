@@ -38,3 +38,11 @@ def test_refuses_non_http_scheme():
     guard = make_guard()
     assert not guard.is_in_scope("file:///etc/passwd")
     assert not guard.is_in_scope("javascript:alert(1)")
+
+
+def test_is_allowed_host_ignores_denylist_but_not_allowlist():
+    guard = make_guard()
+    # denylisted path, allowlisted host -> allowed-host check passes
+    assert guard.is_allowed_host("http://localhost:8080/setup.php")
+    # non-allowlisted host -> still refused
+    assert not guard.is_allowed_host("http://evil.example.com/setup.php")

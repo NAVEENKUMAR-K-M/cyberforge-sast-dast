@@ -1,0 +1,19 @@
+# Reflected/stored XSS probe (CWE-79). A single unique marker per request
+# lets the probe classify exactly where/how it landed in the response
+# (HTML body, attribute, script, URL) without needing a real <script> to
+# fire -- execution is only confirmed later, optionally, via the headless
+# browser verifier.
+#
+# {marker} is substituted with a fresh random token per injection point so
+# a hit can never be confused with another request's payload or with
+# page content that already happens to look similar.
+
+# Each template must contain at least one HTML-significant character
+# (<, >, ", ') so that verbatim survival in the response actually proves
+# something -- a bare alphanumeric marker would "survive" even through
+# correct HTML-escaping and say nothing about exploitability.
+marker_payloads:
+  - "<{marker}>"
+  - "\"{marker}\""
+  - "'{marker}'"
+  - "{marker}\"'><"

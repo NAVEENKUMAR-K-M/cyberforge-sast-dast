@@ -14,9 +14,12 @@ from pathlib import Path
 
 
 def _matches(finding: dict, key_entry: dict) -> bool:
+    """A key_entry's `method` and `param` are optional: a safe_decoy in
+    particular often only cares about matching cwe + route_template
+    regardless of method, or route_template alone regardless of param."""
     if finding["cwe"] != key_entry["cwe"]:
         return False
-    if finding["method"].upper() != key_entry["method"].upper():
+    if key_entry.get("method") and finding["method"].upper() != key_entry["method"].upper():
         return False
     if finding["route_template"].rstrip("/") != key_entry["route_template"].rstrip("/"):
         return False

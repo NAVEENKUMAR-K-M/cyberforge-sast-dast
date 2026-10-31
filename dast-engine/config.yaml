@@ -12,8 +12,13 @@ floor_rps: 5
 verify_tls: false
 max_pages: 200
 
-active_backend: zap   # zap | nuclei | none
+active_backend: python   # python (default, custom probes) | zap | nuclei | none
 zap_api_url: "http://localhost:8090"
+# Only needed when the ZAP daemon runs in its own container/host and can't
+# reach `target` directly (e.g. "localhost" inside a Docker container means
+# that container, not the target). Leave null when ZAP can reach `target`
+# as-is. See scanners/zap_runner.py's module docstring.
+zap_scan_target: null
 
 route_map_path: null   # optional, from SAST: route_map.json
 hints_path: null       # optional, from SAST: hints.json

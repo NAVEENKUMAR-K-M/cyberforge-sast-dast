@@ -12,18 +12,23 @@ from __future__ import annotations
 
 import logging
 
-from core.models import ParamLocation
 from core.request_manager import Budget, RequestManager
+from core.scheduler import DeadlineTimer
 from core.scope_guard import ScopeGuard
+from scanners.probes.cmdi import CmdiProbe
+from scanners.probes.open_redirect import OpenRedirectProbe
+from scanners.probes.path_traversal import PathTraversalProbe
+from scanners.probes.sqli import SqliProbe
+from scanners.probes.xss import XssProbe
 
 logger = logging.getLogger("dast.api")
 
-_CWE_BACKEND = {
-    "CWE-89": "zap",
-    "CWE-79": "zap",
-    "CWE-78": "zap",
-    "CWE-22": "zap",
-    "CWE-601": "zap",
+_PROBE_BY_CWE = {
+    "CWE-89": SqliProbe,
+    "CWE-79": XssProbe,
+    "CWE-78": CmdiProbe,
+    "CWE-22": PathTraversalProbe,
+    "CWE-601": OpenRedirectProbe,
 }
 
 
@@ -40,11 +45,14 @@ async def verify(
     """Re-test one specific (cwe, method, route, param) tuple live.
 
     Returns a finding dict (see results/schema.json) if it reproduces,
-    otherwise None. Uses the ZAP backend's single-URL active scan rather
-    than a full crawl+scan, so this stays fast enough to call per hint.
+    otherwise None. Builds a fresh, logged-in RequestManager and calls the
+    matching probe's verify() directly -- no full crawl/discovery needed,
+    so this stays fast enough to call per hint.
     """
-    import time
-    from core.scheduler import DeadlineTimer
+    probe_cls = _PROBE_BY_CWE.get(cwe)
+    if probe_cls is None:
+        logger.warning("verify(): no probe registered for %s", cwe)
+        return None
 
     timer = DeadlineTimer(float(config.get("verify_deadline_seconds", 30)))
     scope_guard = ScopeGuard.from_config(config)
@@ -60,19 +68,9 @@ async def verify(
 
         await login(rm, config.get("auth", {}))
 
-        from scanners.zap_runner import ZapRunner
-
-        runner = ZapRunner(
-            zap_api_url=config.get("zap_api_url", "http://localhost:8090"),
-            target=url,
-            deadline_ts=timer.start + timer.total_s,
-            denylist_patterns=config.get("denylist", []),
-        )
-        findings = await runner.run([url], cookies=rm.cookies)
+        probe = probe_cls()
+        finding = await probe.verify(rm, method, url, route, param, param_location)
     finally:
         await rm.aclose()
 
-    for f in findings:
-        if f.cwe == cwe and (not param or f.param == param):
-            return f.to_dict()
-    return None
+    return finding.to_dict() if finding else None

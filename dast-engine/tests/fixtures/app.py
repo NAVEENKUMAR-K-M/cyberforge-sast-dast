@@ -12,6 +12,16 @@ app = Flask(__name__)
 _comments: list[str] = []
 
 
+@app.route("/bad-redirect")
+def bad_redirect():
+    # Mirrors a fuzzed param reflected straight into Location: not a valid
+    # URL (missing leading slash for a path, raw spaces, etc).
+    reflected = request.args.get("to", "info.php?id=1")
+    resp = make_response("", 302)
+    resp.headers["Location"] = reflected
+    return resp
+
+
 @app.route("/insecure")
 def insecure():
     resp = make_response(

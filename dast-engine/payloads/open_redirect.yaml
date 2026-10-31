@@ -1,0 +1,17 @@
+# Open redirect probe (CWE-601). All payloads point at a canary domain
+# that will never resolve to anything real; redirects are never followed
+# (RequestManager.send already disables auto-follow), so this is purely a
+# header/body inspection, not an actual navigation anywhere.
+
+canary_host: "dast-canary.invalid"
+
+payload_templates:
+  - "https://{canary}/"
+  - "http://{canary}/"
+  - "//{canary}/"
+  - "/\\{canary}"      # browsers normalize a leading "/\" the same as "//"
+# Deliberately NOT included: single-slash "https:/{canary}" and encoded
+# "/%2f{canary}" variants. Neither reliably produces a cross-origin
+# redirect in standard browsers (confirmed via urlparse: both come back
+# with an empty netloc), so treating them as confirmed would risk false
+# alarms rather than catch a real bypass.

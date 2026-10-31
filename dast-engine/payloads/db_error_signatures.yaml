@@ -1,0 +1,44 @@
+# Database error-message signatures used to confirm error-based SQLi.
+# A bare 500 status is NEVER sufficient on its own (a decoy int-cast param
+# can 500 on bad input without being injectable) -- one of these strings
+# must actually appear in the response body.
+
+# A bare exception/class *name* (mysqli_sql_exception, sqlite3.OperationalError,
+# ...) is NOT used alone: confirmed in testing against live DVWA that its
+# own setup documentation mentions "mysqli_sql_exception" in prose (about
+# PHP 8.1 compatibility) with no error involved at all. Real thrown errors
+# are reliably printed as "Uncaught <ClassName>" or "<ClassName>: <message>",
+# so requiring that shape keeps the specific, low-false-positive phrases
+# while still matching genuine stack traces.
+
+mysql:
+  - "you have an error in your sql syntax"
+  - "warning: mysql_"
+  - "uncaught mysqli_sql_exception"
+  - "unknown column"
+  - "supplied argument is not a valid mysql"
+
+postgresql:
+  - "pg_query(): query failed"
+  - "pg_exec(): query failed"
+  - "unterminated quoted string"
+  - "invalid input syntax for"
+  - "org.postgresql.util.psqlexception:"
+
+sqlite:
+  - "sqlite3.operationalerror:"
+  - "sqlite_error"
+  - "near \"\": syntax error"
+  - "unrecognized token"
+
+mssql:
+  - "unclosed quotation mark after the character string"
+  - "microsoft ole db provider for sql server"
+  - "incorrect syntax near"
+  - "system.data.sqlclient.sqlexception:"
+
+oracle:
+  - "ora-00933"
+  - "ora-01756"
+  - "ora-00936"
+  - "quoted string not properly terminated"

@@ -15,9 +15,10 @@ from core.scope_guard import ScopeGuard
 from discovery.baseline import get_baseline
 from discovery.crawler import crawl
 from discovery.injection_points import build_injection_points
-from discovery.route_map_loader import load_route_map
+from discovery.route_map_loader import load_route_map, load_sast_hints
 from results.normalizer import build_output, write_output
 from scanners.passive import PassiveScanner
+from scanners.probe_runner import run_probes
 from scanners.stored_marker import check_persistence, submit_markers
 
 logger = logging.getLogger("dast.controller")
@@ -81,9 +82,12 @@ async def run_scan(config: dict) -> dict:
         except Exception:
             logger.exception("stored-marker check failed")
 
-        # --- Active backend (ZAP primary, Nuclei optional alt) ---
-        active_backend = config.get("active_backend", "zap")
-        if active_backend == "zap":
+        # --- Active backend: custom Python probes (default), or ZAP/Nuclei ---
+        active_backend = config.get("active_backend", "python")
+        if active_backend == "python":
+            hints = load_sast_hints(config.get("hints_path"))
+            all_findings.extend(await run_probes(rm, points, baselines, hints=hints))
+        elif active_backend == "zap":
             from scanners.zap_runner import ZapRunner
 
             runner = ZapRunner(
@@ -91,8 +95,15 @@ async def run_scan(config: dict) -> dict:
                 target=target,
                 deadline_ts=timer.start + total_budget_s - report_reserve_s,
                 denylist_patterns=config.get("denylist", []),
+                scan_target=config.get("zap_scan_target"),
             )
-            all_findings.extend(await runner.run(list(crawl_result.urls), cookies=rm.cookies))
+            # Scan only actual injection points (pages with real params),
+            # not every crawled URL -- a plain nav page with no params has
+            # nothing to inject into, and scanning it anyway (observed in
+            # testing) burns through the time budget on irrelevant pages
+            # before reaching the ones that matter.
+            active_scan_urls = sorted({p.url for p in points}) or list(crawl_result.urls)
+            all_findings.extend(await runner.run(active_scan_urls, cookies=rm.cookies))
         elif active_backend == "nuclei":
             from scanners.nuclei_runner import run as nuclei_run
 

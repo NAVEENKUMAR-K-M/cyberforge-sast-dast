@@ -23,3 +23,17 @@ def fixture_app_url():
     thread.start()
     time.sleep(0.5)
     yield f"http://127.0.0.1:{port}"
+
+
+@pytest.fixture(scope="session")
+def vuln_app_url():
+    from tests.fixtures.vuln_app import app
+
+    port = _free_port()
+    thread = threading.Thread(
+        target=lambda: app.run(host="127.0.0.1", port=port, use_reloader=False, threaded=True),
+        daemon=True,
+    )
+    thread.start()
+    time.sleep(0.5)
+    yield f"http://127.0.0.1:{port}"

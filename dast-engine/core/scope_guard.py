@@ -41,6 +41,18 @@ class ScopeGuard:
                 return True
         return False
 
+    def is_allowed_host(self, url: str) -> bool:
+        """Host-allowlist check only, without the denylist. Used for
+        deliberate, config-specified actions that intentionally target a
+        denylisted path (see RequestManager.send's bypass_denylist)."""
+        try:
+            parsed = urlparse(url)
+        except Exception:
+            return False
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            return False
+        return self._host_matches(parsed.hostname or "")
+
     def is_in_scope(self, url: str) -> bool:
         try:
             parsed = urlparse(url)

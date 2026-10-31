@@ -6,15 +6,36 @@
 #   python main.py scan --target http://localhost:8080 --config dvwa.yaml
 
 services:
+  dvwa-db:
+    image: mariadb:10.11
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpw
+      MYSQL_DATABASE: dvwa
+      MYSQL_USER: dvwa
+      MYSQL_PASSWORD: p@ssw0rd
+    restart: unless-stopped
+
   dvwa:
     image: ghcr.io/digininja/dvwa:latest
     ports:
       - "8080:80"
+    environment:
+      DB_SERVER: dvwa-db
+      DB_DATABASE: dvwa
+      DB_USER: dvwa
+      DB_PASSWORD: p@ssw0rd
+      DB_PORT: "3306"
+    depends_on:
+      - dvwa-db
     restart: unless-stopped
 
   zap:
     image: zaproxy/zap-stable
-    command: zap.sh -daemon -host 0.0.0.0 -port 8090 -config api.disablekey=true
+    command: >
+      zap.sh -daemon -host 0.0.0.0 -port 8090
+      -config api.disablekey=true
+      -config api.addrs.addr.name=.*
+      -config api.addrs.addr.regex=true
     ports:
       - "8090:8090"
     restart: unless-stopped

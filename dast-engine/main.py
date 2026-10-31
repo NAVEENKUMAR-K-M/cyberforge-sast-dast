@@ -35,7 +35,7 @@ def cli():
 @click.option("--config", "config_path", default=None, help="Path to config.yaml")
 @click.option("--route-map", "route_map_path", default=None, help="Path to route_map.json from SAST")
 @click.option("--hints", "hints_path", default=None, help="Path to SAST hints JSON")
-@click.option("--output", "output_path", default="output/dast_results.json", help="Output JSON path")
+@click.option("--output", "output_path", default=None, help="Output JSON path (overrides the config file's output_path)")
 @click.option("--active-backend", default=None, help="zap | nuclei | none")
 @click.option("--deadline", "deadline_seconds", default=None, type=float, help="Total scan budget in seconds")
 def scan(target, config_path, route_map_path, hints_path, output_path, active_backend, deadline_seconds):
@@ -50,7 +50,9 @@ def scan(target, config_path, route_map_path, hints_path, output_path, active_ba
         cfg["active_backend"] = active_backend
     if deadline_seconds:
         cfg["deadline_seconds"] = deadline_seconds
-    cfg["output_path"] = output_path
+    if output_path:
+        cfg["output_path"] = output_path
+    cfg.setdefault("output_path", "output/dast_results.json")
 
     result = asyncio.run(run_scan(cfg))
     click.echo(

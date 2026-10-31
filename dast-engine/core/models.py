@@ -101,16 +101,28 @@ class Finding:
 
         Deliberately excludes payload/timestamp/evidence so re-scans dedupe
         to the same id even if the exact payload text differs.
+
+        App-scope findings (scope="app": missing headers, cookie flags,
+        ...) additionally include `title`. Without it, two genuinely
+        different checks that happen to share one CWE code (e.g. missing
+        Referrer-Policy and missing SameSite both map to CWE-1275) would
+        collide onto the same id and silently drop one from the output --
+        this was caught by exactly that collision. Endpoint-scope findings
+        deliberately stay CWE/route/param/location only: their title can
+        vary by run for the same underlying bug (XSS's title includes the
+        reflection context classified that run), so including it there
+        would break the very stability this id exists for.
         """
-        basis = "|".join(
-            [
-                self.cwe,
-                self.method.upper(),
-                self.route_template,
-                self.param or "",
-                self.param_location or "",
-            ]
-        )
+        parts = [
+            self.cwe,
+            self.method.upper(),
+            self.route_template,
+            self.param or "",
+            self.param_location or "",
+        ]
+        if self.scope == "app":
+            parts.append(self.title)
+        basis = "|".join(parts)
         return hashlib.sha1(basis.encode("utf-8")).hexdigest()
 
     def to_dict(self) -> dict[str, Any]:

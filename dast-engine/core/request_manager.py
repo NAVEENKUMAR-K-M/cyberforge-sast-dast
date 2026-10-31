@@ -113,12 +113,24 @@ class RequestManager:
         cookies: dict | None = None,
         allow_redirect_follow_once: bool = True,
         serial: bool = False,
+        bypass_denylist: bool = False,
     ) -> httpx.Response | None:
         """Send a single request. Returns None if out of scope, denylisted,
-        or the budget has expired (scan deadline reached)."""
+        or the budget has expired (scan deadline reached).
+
+        `bypass_denylist` is only for deliberate, config-specified setup
+        steps (e.g. auth.py's post_login actions) that intentionally target
+        a denylisted path such as DVWA's security.php. The denylist exists
+        to stop the *crawler* from wandering onto destructive/state-changing
+        pages, not to block an explicit, one-time, operator-approved action.
+        The host allowlist is still enforced either way.
+        """
         if self.budget.expired():
             return None
-        if not self.scope_guard.is_in_scope(url):
+        in_scope = self.scope_guard.is_in_scope(url) or (
+            bypass_denylist and self.scope_guard.is_allowed_host(url)
+        )
+        if not in_scope:
             raise ScopeViolation(f"Refusing out-of-scope request: {url}")
 
         await self.limiter.acquire()
@@ -144,7 +156,16 @@ class RequestManager:
                 headers=merged_headers,
             )
             self.request_count += 1
-        except httpx.RequestError as exc:
+        except (httpx.RequestError, httpx.InvalidURL) as exc:
+            # httpx.InvalidURL: fuzzing a param that ends up reflected into
+            # a redirect's Location header can produce a Location value
+            # that isn't a valid URL at all (e.g. a path-traversal payload
+            # landing in an open-redirect param). httpx validates/builds
+            # the redirect request eagerly *even when follow_redirects is
+            # off* (it still populates response.next_request), so a
+            # malformed Location raises here regardless -- this is an
+            # expected, not exceptional, outcome of probing, not a real
+            # connection failure.
             logger.debug("Request error %s %s: %s", method, url, exc)
             is_error = True
             self.limiter.record(time.monotonic() - start, is_error)
