@@ -17,7 +17,7 @@ import time
 from core.models import Baseline, Confidence, Evidence, Finding, InjectionPoint, Severity
 from core.request_manager import RequestManager
 from scanners.probes.base import Probe
-from scanners.probes.util import build_request, is_clean_request_noise, load_payloads, random_small_ints
+from scanners.probes.util import build_request, is_clean_request_noise, load_payloads, random_small_ints, verify_point
 
 logger = logging.getLogger("dast.probes.cmdi")
 
@@ -108,12 +108,7 @@ class CmdiProbe(Probe):
             tool="dast-engine",
         )
 
-    async def verify(self, rm: RequestManager, method: str, url: str, route_template: str, param: str | None, param_location: str) -> Finding | None:
-        from core.models import ParamLocation
-
-        point = InjectionPoint(
-            method=method, url=url, route_template=route_template, param=param or "",
-            param_location=ParamLocation(param_location) if param_location else ParamLocation.QUERY,
-        )
+    async def verify(self, rm: RequestManager, method: str, url: str, route_template: str, param: str | None, param_location: str, fields: dict | None = None, hint: str | None = None) -> Finding | None:
+        point = verify_point(method, url, route_template, param, param_location, fields, hint)
         findings = await self.detect(rm, point, baseline=None, hinted=True)
         return findings[0] if findings else None

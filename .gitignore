@@ -10,6 +10,11 @@ __pycache__/
 .venv/
 venv/
 
+# Secrets: API keys live here, never in code. Copy .env.example to .env.
+.env
+.env.*
+!.env.example
+
 # Correlator output (python -m correlator.cli --out out/issues.json)
 out/
 

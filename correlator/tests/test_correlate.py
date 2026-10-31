@@ -21,20 +21,23 @@ def route(path="/a.php", selector=None, aliases=(), methods=("GET",)):
 
 
 def sast(id, cwe="CWE-89", status="open", params=(("id", "query"),), routes=None, file="a.php", function="<top-level>",
-         stored_on=None, confidence="high", reason=None):
+         stored_on=None, confidence="high", reason=None, sink="query", built_at=None):
     return {
         "id": f"sast:{id}", "source": "sast", "tool": "cyberforge-sast", "cwe": cwe, "cwe_family": cwe, "title": "Bug",
         "severity": "critical", "confidence": confidence, "status": status, "scope": "endpoint",
         "params": [{"name": n, "location": loc} for n, loc in params],
         "routes": [route()] if routes is None else routes,
-        "code": {"file": file, "line": 1, "snippet": "", "function": function, "sink": "query", "trace": [], "conditions": [],
+        "code": {"file": file, "line": 1, "snippet": "", "function": function, "sink": sink,
+                 "trace": [{"file": file, "line": built_at, "note": "assigned to $q"}, {"file": file, "line": 50, "note": f"reaches sink {sink}"}]
+                 if built_at else [], "conditions": [],
                  "stored_flow": {"store": "db:t", "write_routes": stored_on} if stored_on else None,
                  "suppression_reason": reason, "engines": ["taint"]},
         "runtime": None,
     }
 
 
-def dast(id, cwe="CWE-89", path="/a.php", selector=None, param="id", location="query", method="GET", url=None, scope="endpoint"):
+def dast(id, cwe="CWE-89", path="/a.php", selector=None, param="id", location="query", method="GET", url=None, scope="endpoint",
+         payload="x", evidence=None, tier="confirmed"):
     endpoint = scope == "endpoint"
     return {
         "id": f"dast:{id}", "source": "dast", "tool": "cyberforge-dast", "cwe": cwe, "cwe_family": cwe, "title": "Bug",
@@ -42,9 +45,19 @@ def dast(id, cwe="CWE-89", path="/a.php", selector=None, param="id", location="q
         "params": [{"name": param, "location": location}] if endpoint else [],
         "routes": [route(path, selector, methods=(method,))] if endpoint else [],
         "code": None,
-        "runtime": {"method": method, "url": url or f"http://h{path}", "payload": "x", "technique": "t",
-                    "verification": "confirmed", "evidence": {}},
+        "runtime": {"method": method, "url": url or f"http://h{path}", "payload": payload, "technique": "t",
+                    "verification": tier, "evidence": evidence or {}},
     }
+
+
+# What a runtime test would have to record to show the weakness itself (see correlator/evidence.py).
+COMPUTED = {"payload": ";expr 1406 + 497", "evidence": {"matched": "1903", "response_excerpt": "usage\n1903\n", "probe_status": 200}}
+DB_ERROR = {"payload": "'", "evidence": {"matched": "syntax error", "response_excerpt": "You have an error in your SQL syntax", "probe_status": 500}}
+
+
+def proven(id, **kwargs):
+    """A command injection finding with a computed result: validated."""
+    return dast(id, cwe="CWE-78", **COMPUTED, **kwargs)
 
 
 def run(code, runtime, **kwargs):
@@ -183,9 +196,18 @@ def test_every_sighting_of_one_bug_is_one_issue():
     assert result["issues"][0]["evidence"]["runtime"][1]["id"] == "dast:d2"
 
 
-def test_sightings_without_code_are_still_one_issue():
+def test_query_and_body_sightings_are_different_requests_without_code():
+    """Merging is for several sightings of one bug. Two different requests join an issue only through code."""
     runtime = [dast("d1", param="q"), dast("d2", param="q", location="body", method="POST")]
-    assert labels(run([], runtime)) == ["Runtime only"]
+    assert labels(run([], runtime)) == ["Runtime only", "Runtime only"]
+
+
+def test_a_body_sighting_is_not_attached_to_code_that_reads_only_the_query():
+    runtime = [dast("d1", param="q"), dast("d2", param="q", location="body", method="POST")]
+    result = run([sast("s1", params=(("q", "query"),))], runtime)
+    assert labels(result) == ["Confirmed", "Runtime only"]
+    confirmed = next(i for i in result["issues"] if i["label"] == "Confirmed")
+    assert confirmed["dast_ids"] == ["dast:d1"]
 
 
 def test_two_inputs_of_one_code_bug_found_separately_are_one_issue():
@@ -364,17 +386,17 @@ def test_cvss_temporal_score_and_rounding():
     assert [cvss.rating(s) for s in (0, 3.9, 4.0, 6.9, 7.0, 8.9, 9.0)] == ["none", "low", "medium", "medium", "high", "high", "critical"]
 
 
-def test_confirmed_sql_injection_gets_its_cvss_and_reasons():
-    issue = run([sast("s1")], [dast("d1")])["issues"][0]
+def test_confirmed_command_injection_gets_its_cvss_and_reasons():
+    issue = run([sast("s1", cwe="CWE-78")], [proven("d1")])["issues"][0]
     assert issue["cvss"] == {"version": "3.0", "vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H/E:F/RC:C",
                              "base_score": 9.8, "temporal_score": 9.6, "rating": "critical"}
     assert issue["risk_score"] == 9.6
-    assert any("E:F" in f and "exploited" in f for f in issue["risk_factors"])
+    assert any("E:F" in f and "computed 1903" in f for f in issue["risk_factors"])
     assert any("RC:C" in f for f in issue["risk_factors"])
 
 
 def test_code_only_scores_lower_than_the_same_bug_proven():
-    proven = run([sast("a")], [dast("d1")])["issues"][0]["risk_score"]
+    proven = run([sast("a")], [dast("d1", **DB_ERROR)])["issues"][0]["risk_score"]
     unproven = run([sast("a")], [])["issues"][0]
     assert unproven["risk_score"] < proven and "E:U" in unproven["cvss"]["vector"] and "RC:R" in unproven["cvss"]["vector"]
 
@@ -452,3 +474,112 @@ def test_cli_writes_the_page_next_to_the_json(tmp_path):
                     "--dast", str(EXAMPLES / "dast_sqli.common.json"), "--out", str(out)], check=True, capture_output=True, cwd=ROOT)
     page = (tmp_path / "issues.html").read_text()
     assert "app/lib/repositories.php:4" in page and "/search.php" in page
+
+
+# ---- evidence levels, base paths, conflicts and sink identity ----
+
+def issue_for(result, label):
+    return next(i for i in result["issues"] if i["label"] == label)
+
+
+def test_every_issue_says_what_its_runtime_evidence_shows():
+    result = run([sast("s1", cwe="CWE-78"), sast("s2", cwe="CWE-89", file="b.php")], [proven("d1")])
+    confirmed, code_only = issue_for(result, "Confirmed"), issue_for(result, "Code only")
+    assert confirmed["runtime_verification"]["level"] == "validated"
+    assert confirmed["runtime_verification"]["checks"][0]["dast_id"] == "dast:d1"
+    assert code_only["runtime_verification"] == {"level": "none", "checks": []}
+
+
+def test_a_scanner_tier_of_confirmed_does_not_make_weak_evidence_validated():
+    issue = run([sast("s1")], [dast("d1", tier="confirmed", **DB_ERROR)])["issues"][0]
+    assert issue["label"] == "Confirmed"
+    assert issue["runtime_verification"]["level"] == "partial" and "E:P" in issue["cvss"]["vector"]
+
+
+@pytest.mark.parametrize("code_prefixed,runtime_path,flag", [
+    (False, "/app/a.php", None),      # base from the DAST target URL
+    (True, "/app/a.php", None),       # SAST also added it
+    (False, "/app/a.php", "/app"),
+    (True, "/app/a.php", "/app"),     # what the web launcher does
+    (True, "/a.php", "/app"),         # runtime without the prefix
+])
+def test_base_path_works_whichever_tool_added_it(code_prefixed, runtime_path, flag):
+    code = sast("s1", routes=[route("/app/a.php" if code_prefixed else "/a.php")])
+    target = "http://h/app" if runtime_path.startswith("/app") else "http://h"
+    runtime = dast("d1", path=runtime_path, url=f"http://h{runtime_path}")
+    result = correlate({"source": "sast", "target": "src", "findings": [code]},
+                       {"source": "dast", "target": target, "findings": [runtime]}, base_path=flag)
+    assert labels(result) == ["Confirmed"]
+    assert [r["path"] for r in result["issues"][0]["routes"]] == ["/a.php"]
+    assert result["diagnostics"] == []
+
+
+def test_a_prefix_that_matches_nothing_is_still_reported():
+    code = sast("s1", routes=[route("/app/a.php")])
+    result = correlate({"source": "sast", "target": "src", "findings": [code]},
+                       {"source": "dast", "target": "http://h", "findings": [dast("d1", path="/other.php")]})
+    assert labels(result) == ["Code only", "Runtime only"] and result["diagnostics"]
+
+
+def test_a_conflict_keeps_the_evidence_of_both_sides():
+    code = sast("s1", status="suppressed", reason="bound query parameter")
+    result = run([code], [dast("d1", **DB_ERROR)])
+    assert result["issues"] == [] and len(result["conflicts"]) == 1
+    record = result["conflicts"][0]
+    assert record["evidence"]["runtime"][0]["id"] == "dast:d1" and record["evidence"]["code"][0]["id"] == "sast:s1"
+    assert record["runtime_verification"]["level"] == "partial" and "issue_id" not in record
+
+
+def test_a_conflict_with_validated_runtime_evidence_is_also_ranked_and_flagged():
+    code = sast("s1", cwe="CWE-78", status="suppressed", reason="escaped argument")
+    result = run([code], [proven("d1")])
+    issue = result["issues"][0]
+    assert issue["label"] == "Runtime only" and issue["conflict"] is True and issue["conflict_with"] == ["sast:s1"]
+    assert result["conflicts"][0]["issue_id"] == issue["issue_id"]
+    assert "RC:R" in issue["cvss"]["vector"] and "E:F" in issue["cvss"]["vector"]
+    assert result["stats"]["conflict_issues"] == 1
+
+
+def test_separately_built_statements_in_one_function_are_different_bugs():
+    code = [sast("s1", sink="mysqli_query", built_at=9), sast("s2", sink="query", built_at=33)]
+    result = run(code, [dast("d1")])
+    assert labels(result) == ["Code only", "Code only", "Runtime only"]
+    assert issue_for(result, "Runtime only")["ambiguous"] is True
+
+
+def test_sinks_fed_by_one_built_value_are_one_bug():
+    code = [sast("s1", sink="rename", built_at=23), sast("s2", sink="unlink", built_at=23)]
+    result = run(code, [dast("d1")])
+    assert labels(result) == ["Confirmed"] and len(result["issues"][0]["sast_ids"]) == 2
+
+
+@pytest.mark.parametrize("coverage,warns", [
+    ({"points_found": 50, "points_dropped_by_scope": 2, "points_tested": 48, "deadline_reached": False}, False),
+    ({"points_found": 353, "points_dropped_by_scope": 0, "points_tested": 49, "deadline_reached": True}, True),
+    ({"points_found": 50, "points_dropped_by_scope": 0, "points_tested": 40, "deadline_reached": False}, True),
+    ({}, False),
+], ids=["complete", "deadline", "short", "not reported"])
+def test_incomplete_runtime_coverage_is_reported(coverage, warns):
+    result = correlate({"source": "sast", "target": "src", "findings": [sast("s1")]},
+                       {"source": "dast", "target": "http://h", "stats": {"coverage": coverage}, "findings": []})
+    assert result["stats"]["runtime_coverage"] == coverage
+    assert any("not that it was tested and found safe" in d for d in result["diagnostics"]) is warns
+
+
+def test_no_runtime_finding_is_lost_or_duplicated():
+    """Every endpoint sighting ends in exactly one issue, or one conflict record (which a ranked
+    conflict issue may also reference)."""
+    code = [sast("s1", params=(("q", "query"),)), sast("s2", params=(("id", "any"),), file="b.php", routes=[route("/b.php")]),
+            sast("s3", status="suppressed", reason="safe", params=(("z", "query"),), file="c.php", routes=[route("/c.php")]),
+            sast("s4", params=(("n", "query"),), file="d.php", routes=[route("/d.php")]),
+            sast("s5", params=(("n", "query"),), file="e.php", routes=[route("/d.php")])]
+    runtime = [dast("d1", param="q"), dast("d2", param="q", location="body", method="POST"),
+               dast("d3", path="/b.php", param="id"), dast("d4", path="/b.php", param="id", location="body", method="POST"),
+               dast("d5", path="/c.php", param="z", **DB_ERROR), dast("d6", path="/c.php", param="z", location="body", method="POST", **DB_ERROR),
+               dast("d7", path="/d.php", param="n"), dast("d8", path="/nowhere.php", param="x"),
+               dast("d9", cwe="CWE-1021", scope="app")]
+    result = run(code, runtime)
+    for finding in runtime:
+        homes = [i["issue_id"] for i in result["issues"] if finding["id"] in i["dast_ids"]]
+        homes += [f"conflict:{n}" for n, c in enumerate(result["conflicts"]) if finding["id"] in c["dast_ids"] and "issue_id" not in c]
+        assert len(homes) == 1, (finding["id"], homes)

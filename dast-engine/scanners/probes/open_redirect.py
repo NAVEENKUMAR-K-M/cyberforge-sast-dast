@@ -17,7 +17,7 @@ from urllib.parse import urlparse
 from core.models import Baseline, Confidence, Evidence, Finding, InjectionPoint, Severity
 from core.request_manager import RequestManager
 from scanners.probes.base import Probe
-from scanners.probes.util import build_request, load_payloads
+from scanners.probes.util import build_request, load_payloads, verify_point
 
 logger = logging.getLogger("dast.probes.open_redirect")
 
@@ -52,8 +52,9 @@ class OpenRedirectProbe(Probe):
         if not (hinted or self.is_relevant(point)):
             templates = templates[:1]
 
-        for template in templates:
-            payload = template.format(canary=self._canary)
+        hint = point.meta.get("payload_hint")  # a destination with {canary}, tried first
+        for template in ([hint] if hint else []) + templates:
+            payload = template.replace("{canary}", self._canary) if template == hint else template.format(canary=self._canary)
             url, kwargs = build_request(point, payload)
             resp = await rm.send(point.method, url, allow_redirect_follow_once=False, **kwargs)
             if resp is None:
@@ -90,12 +91,7 @@ class OpenRedirectProbe(Probe):
             tool="dast-engine",
         )
 
-    async def verify(self, rm: RequestManager, method: str, url: str, route_template: str, param: str | None, param_location: str) -> Finding | None:
-        from core.models import ParamLocation
-
-        point = InjectionPoint(
-            method=method, url=url, route_template=route_template, param=param or "",
-            param_location=ParamLocation(param_location) if param_location else ParamLocation.QUERY,
-        )
+    async def verify(self, rm: RequestManager, method: str, url: str, route_template: str, param: str | None, param_location: str, fields: dict | None = None, hint: str | None = None) -> Finding | None:
+        point = verify_point(method, url, route_template, param, param_location, fields, hint)
         findings = await self.detect(rm, point, baseline=None, hinted=True)
         return findings[0] if findings else None

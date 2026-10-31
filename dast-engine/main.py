@@ -17,6 +17,7 @@ import yaml
 from api import verify as verify_finding
 from core.controller import run_scan
 from core.scope_guard import DEFAULT_DENYLIST
+from results.common_export import finding_to_common
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
@@ -114,17 +115,35 @@ def scan(target, config_path, route_map_path, hints_path, output_path, active_ba
 @click.option("--param", required=True, help="Parameter name")
 @click.option("--param-location", default="query", help="query, body, json, path, header or cookie")
 @click.option("--selector", default=None, help="Query value that picks the page, such as action=view")
+@click.option("--field", "fields", multiple=True, help="Another value the request needs, as name=value (such as password=x)")
+@click.option("--hint", default=None, help="A payload shape to try first: {canary} for a redirect, {marker} for XSS, "
+                                           "a traversal prefix for path traversal")
 @_auth_options
-def verify(target, config_path, cwe, method, route, param, param_location, selector,
+def verify(target, config_path, cwe, method, route, param, param_location, selector, fields, hint,
            login_url, username, password, json_login, headers, cookies, bearer_token):
-    """Re-test one finding. Prints JSON on stdout; logs go to stderr."""
+    """Re-test one finding. Prints JSON on stdout (with every request sent); logs go to stderr."""
+    extra = {}
+    for item in fields:
+        name, sep, value = item.partition("=")
+        if not sep or not name or len(item) > 500 or _has_control(item):
+            raise click.UsageError(f"--field must be name=value on one line, got {item[:40]!r}")
+        extra[name] = value
+    if hint is not None and (not hint or len(hint) > 200 or _has_control(hint)):
+        raise click.UsageError("--hint must be 1 to 200 printable characters on one line")
     cfg = _load_config(config_path)
     _apply_auth_options(cfg, login_url, username, password, json_login, headers, cookies, bearer_token)
     cfg.setdefault("allowlist", [target])
+    attempts: list = []
     finding = asyncio.run(
-        verify_finding(cwe, method, route, param, target=target, config=cfg, param_location=param_location, selector=selector)
+        verify_finding(cwe, method, route, param, target=target, config=cfg, param_location=param_location, selector=selector,
+                       fields=extra or None, hint=hint, attempts_out=attempts)
     )
-    click.echo(json.dumps({"reproduced": finding is not None, "finding": finding}))
+    click.echo(json.dumps({"reproduced": finding is not None, "finding": finding,
+                           "finding_common": finding_to_common(finding) if finding else None, "attempts": attempts}))
+
+
+def _has_control(text: str) -> bool:
+    return any(ord(c) < 32 or ord(c) == 127 for c in text)
 
 
 if __name__ == "__main__":

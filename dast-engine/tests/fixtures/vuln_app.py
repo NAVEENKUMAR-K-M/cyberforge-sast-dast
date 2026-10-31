@@ -192,3 +192,44 @@ def redirect_decoy():
 
 if __name__ == "__main__":
     app.run(port=5056)
+
+
+# --- Shapes a generic probe misses without help (used by the verify hint/field tests) ---------------
+@app.route("/guarded_redirect")
+def guarded_redirect():
+    # Redirects only when the value mentions this site, so a bare foreign URL is ignored.
+    next_url = request.args.get("next", "/")
+    if "keep-me" not in next_url:
+        return "saved"
+    resp = make_response("", 302)
+    resp.headers["Location"] = next_url
+    return resp
+
+
+@app.route("/filtered_traversal")
+def filtered_traversal():
+    # Removes "../" once, so "....//" turns back into "../".
+    page = request.args.get("page", "readme.txt").replace("../", "")
+    target = os.path.normpath(os.path.join(_BASE_DIR, page.lstrip("/"))).replace("\\", "/")  # not realpath: macOS links /etc
+    if target == "/etc/passwd":  # only a path that really climbs out of the folder
+        return "root:x:0:0:root:/root:/bin/bash\n"
+    return "not found", 404
+
+
+@app.route("/xss_unquoted")
+def xss_unquoted():
+    # An unquoted attribute: escaping quotes and angle brackets doesn't stop a space.
+    return f"<img src={escape(request.args.get('img', 'logo.png'))}>"
+
+
+@app.route("/needs_field", methods=["POST"])
+def needs_field():
+    # The vulnerable query only runs when the other form field is sent too.
+    if "password" not in request.form:
+        return "missing password", 200
+    query = f"SELECT name FROM users WHERE name = '{request.form.get('name', '')}'"
+    try:
+        _conn.execute(query).fetchall()
+        return "ok"
+    except sqlite3.OperationalError as e:
+        return f"sqlite3.OperationalError: {e}", 500

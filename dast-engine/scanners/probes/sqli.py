@@ -22,7 +22,7 @@ from core.models import Baseline, Confidence, Evidence, Finding, InjectionPoint,
 from core.request_manager import RequestManager
 from discovery.baseline import is_similar_to_baseline
 from scanners.probes.base import Probe
-from scanners.probes.util import build_request, is_clean_request_noise, load_payloads
+from scanners.probes.util import build_request, is_clean_request_noise, load_payloads, verify_point
 from verification.response_diff import boolean_pair_confirms
 
 logger = logging.getLogger("dast.probes.sqli")
@@ -160,13 +160,8 @@ class SqliProbe(Probe):
             tool="dast-engine",
         )
 
-    async def verify(self, rm: RequestManager, method: str, url: str, route_template: str, param: str | None, param_location: str) -> Finding | None:
-        from core.models import ParamLocation
-
-        point = InjectionPoint(
-            method=method, url=url, route_template=route_template, param=param or "",
-            param_location=ParamLocation(param_location) if param_location else ParamLocation.QUERY,
-        )
+    async def verify(self, rm: RequestManager, method: str, url: str, route_template: str, param: str | None, param_location: str, fields: dict | None = None, hint: str | None = None) -> Finding | None:
+        point = verify_point(method, url, route_template, param, param_location, fields, hint)
         findings = await self.detect(rm, point, baseline=None, hinted=True)
         if not findings:
             # error-based needs no baseline; retry with a fresh baseline for boolean/time-based
