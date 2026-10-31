@@ -58,11 +58,26 @@
     },
     "issue": {
       "type": "object",
-      "required": ["issue_id", "label", "cwe", "cwe_family", "title", "severity", "confidence", "reportable", "stored",
-                   "ambiguous", "candidates", "routes", "params", "sast_ids", "dast_ids", "evidence"],
+      "required": ["issue_id", "rank", "label", "cwe", "cwe_family", "title", "severity", "cvss", "risk_score", "risk_factors", "confidence",
+                   "reportable", "stored", "ambiguous", "candidates", "routes", "params", "sast_ids", "dast_ids", "evidence"],
       "additionalProperties": false,
       "properties": {
         "issue_id": {"type": "string", "pattern": "^issue:[0-9a-f]+$"},
+        "rank": {"type": "integer", "minimum": 1, "description": "1 is fixed first: Confirmed before the rest, then highest risk"},
+        "cvss": {
+          "type": "object",
+          "required": ["version", "vector", "base_score", "temporal_score", "rating"],
+          "additionalProperties": false,
+          "properties": {
+            "version": {"const": "3.0"},
+            "vector": {"type": "string", "pattern": "^CVSS:3\\.0/AV:[NALP]/AC:[LH]/PR:[NLH]/UI:[NR]/S:[UC]/C:[HLN]/I:[HLN]/A:[HLN]"},
+            "base_score": {"type": "number", "minimum": 0, "maximum": 10},
+            "temporal_score": {"type": "number", "minimum": 0, "maximum": 10},
+            "rating": {"enum": ["none", "low", "medium", "high", "critical"]}
+          }
+        },
+        "risk_score": {"type": "number", "minimum": 0, "maximum": 10, "description": "the CVSS v3.0 Temporal score"},
+        "risk_factors": {"type": "array", "items": {"type": "string"}},
         "label": {"enum": ["Confirmed", "Code only", "Runtime only"]},
         "cwe": {"type": "string", "pattern": "^CWE-[0-9]+$"},
         "cwe_family": {"type": "string", "pattern": "^CWE-[0-9]+$"},

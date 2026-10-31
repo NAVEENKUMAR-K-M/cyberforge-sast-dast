@@ -14,6 +14,8 @@ from urllib.parse import parse_qsl, urlparse
 
 import jsonschema
 
+from correlator.rank import rank
+
 SCHEMA_VERSION = "1.0"
 COMMON = Path(__file__).resolve().parents[1] / "common"
 SEVERITY_ORDER = ["info", "low", "medium", "high", "critical"]
@@ -283,7 +285,7 @@ def correlate(sast_doc: dict, dast_doc: dict, base_path: str | None = None, sour
         issues.append(_issue(code_ids[i], "Confirmed" if runtime else "Code only", group, sorted(runtime, key=lambda f: f["id"]), base))
     for f in app_wide:
         issues.append(_issue(_hash("issue", ["runtime", f["id"]]), "Runtime only", [], [f], base))
-    issues.sort(key=lambda x: x["issue_id"])
+    issues = rank(issues)
 
     diagnostics = []
     code_paths = {p for f in open_code for r in f["routes"] for p in [r["path"], *r.get("aliases", [])]}

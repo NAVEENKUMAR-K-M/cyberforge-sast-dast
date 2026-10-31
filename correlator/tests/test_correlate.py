@@ -317,3 +317,138 @@ def test_cli_exits_2_on_bad_input(tmp_path):
                            "--dast", str(EXAMPLES / "dast_sqli.common.json"), "--out", str(tmp_path / "o.json")],
                           capture_output=True, text=True, cwd=ROOT)
     assert done.returncode == 2 and "expected a sast report" in done.stderr
+
+
+# ---- FR-9: prioritised list ----
+
+def test_confirmed_sql_injection_ranks_above_a_code_only_weak_hash():
+    """The PRD's example."""
+    weak_hash = sast("hash", cwe="CWE-327", params=(), routes=[])
+    weak_hash["severity"] = "critical"  # even when its severity is just as high
+    result = run([sast("s1"), weak_hash], [dast("d1")])
+    assert [(i["rank"], i["label"], i["cwe"]) for i in result["issues"]] == [(1, "Confirmed", "CWE-89"), (2, "Code only", "CWE-327")]
+
+
+def test_within_a_label_higher_risk_comes_first():
+    medium = sast("m", cwe="CWE-79", params=(("q", "query"),), file="m.php")
+    medium["severity"] = "medium"
+    result = run([medium, sast("c", file="c.php")], [])
+    assert [i["cwe"] for i in result["issues"]] == ["CWE-89", "CWE-79"]
+    assert result["issues"][0]["risk_score"] > result["issues"][1]["risk_score"]
+
+
+# ---- CVSS v3.0 ----
+
+@pytest.mark.parametrize("vector,expected", [
+    ("AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H", 9.8),
+    ("AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N", 6.1),   # the spec's reflected XSS example
+    ("AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N", 7.5),
+    ("AV:N/AC:L/PR:L/UI:N/S:C/C:H/I:H/A:H", 9.9),   # scope changed raises the low-privilege weight
+    ("AV:N/AC:L/PR:H/UI:N/S:C/C:H/I:H/A:H", 9.1),
+    ("AV:L/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H", 8.4),
+    ("AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:N/A:N", 5.9),
+    ("AV:N/AC:L/PR:N/UI:R/S:U/C:N/I:L/A:N", 4.3),
+    ("AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:N/A:N", 3.1),
+    ("AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:N", 0.0),
+])
+def test_cvss_base_scores_match_the_specification(vector, expected):
+    from correlator import cvss
+    assert cvss.base_score(cvss.parse(vector)) == expected
+
+
+def test_cvss_temporal_score_and_rounding():
+    from correlator import cvss
+    metrics = cvss.parse("CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H/E:F/RL:O/RC:C")
+    assert cvss.temporal_score(cvss.base_score(metrics), metrics) == 9.1
+    assert cvss.roundup(4.0) == 4.0 and cvss.roundup(4.02) == 4.1 and cvss.roundup(4.000000001) == 4.0
+    assert [cvss.rating(s) for s in (0, 3.9, 4.0, 6.9, 7.0, 8.9, 9.0)] == ["none", "low", "medium", "medium", "high", "high", "critical"]
+
+
+def test_confirmed_sql_injection_gets_its_cvss_and_reasons():
+    issue = run([sast("s1")], [dast("d1")])["issues"][0]
+    assert issue["cvss"] == {"version": "3.0", "vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H/E:F/RC:C",
+                             "base_score": 9.8, "temporal_score": 9.6, "rating": "critical"}
+    assert issue["risk_score"] == 9.6
+    assert any("E:F" in f and "exploited" in f for f in issue["risk_factors"])
+    assert any("RC:C" in f for f in issue["risk_factors"])
+
+
+def test_code_only_scores_lower_than_the_same_bug_proven():
+    proven = run([sast("a")], [dast("d1")])["issues"][0]["risk_score"]
+    unproven = run([sast("a")], [])["issues"][0]
+    assert unproven["risk_score"] < proven and "E:U" in unproven["cvss"]["vector"] and "RC:R" in unproven["cvss"]["vector"]
+
+
+def test_no_known_url_and_low_confidence_lower_the_score():
+    reachable = run([sast("a")], [])["issues"][0]["risk_score"]
+    no_route = run([sast("a", routes=[])], [])["issues"][0]
+    low = run([sast("a", confidence="low")], [])["issues"][0]
+    assert no_route["risk_score"] < reachable and "AV:L" in no_route["cvss"]["vector"]
+    assert low["risk_score"] < reachable and "RC:U" in low["cvss"]["vector"]
+
+
+def test_hard_coded_secret_keeps_network_access_without_a_route():
+    """A leaked password is usable from anywhere, so no known URL doesn't lower it."""
+    issue = run([sast("k", cwe="CWE-798", params=(), routes=[])], [])["issues"][0]
+    assert "AV:N" in issue["cvss"]["vector"]
+
+
+def test_xss_through_a_header_is_harder_to_exploit():
+    via_query = run([], [dast("d1", cwe="CWE-79", param="q")])["issues"][0]
+    via_header = run([], [dast("d1", cwe="CWE-79", param="User-Agent", location="header")])["issues"][0]
+    assert "AC:H" in via_header["cvss"]["vector"] and via_header["risk_score"] < via_query["risk_score"]
+
+
+def test_unknown_weakness_falls_back_to_the_scanner_severity():
+    issue = run([sast("z", cwe="CWE-9999", params=(), routes=[])], [])["issues"][0]
+    assert issue["cvss"]["base_score"] == 9.8 and "from critical severity" in issue["risk_factors"][0]
+
+
+def test_held_back_issues_rank_last():
+    result = run([sast("low", confidence="low", file="z.php"), sast("x", cwe="CWE-1021", params=(), routes=[], file="y.php")], [])
+    assert result["issues"][-1]["reportable"] is False
+
+
+def test_ranks_are_consecutive_and_stable():
+    code, runtime = mixed_inputs()
+    ranks = [i["rank"] for i in run(code, runtime)["issues"]]
+    assert ranks == list(range(1, len(ranks) + 1))
+
+
+# ---- FR-8: one page that tells a developer where to look ----
+
+def test_page_shows_where_to_look_for_a_confirmed_issue():
+    from correlator.report import render
+    code = sast("s1")
+    code["code"].update({"file": "app/orders.php", "line": 88, "snippet": "$db->query('SELECT ' . $id);"})
+    runtime = dast("d1", path="/api/orders", url="http://h/api/orders?id=1")
+    runtime["runtime"]["payload"] = "1'"
+    page = render(run([code], [runtime]))
+    for expected in ("http://h/api/orders?id=1", "id (query)", "1&#x27;", "app/orders.php:88", "$db-&gt;query(", "CWE-89", "critical", "Confirmed"):
+        assert expected in page, expected
+
+
+def test_page_escapes_attack_strings():
+    from correlator.report import render
+    runtime = dast("d1", cwe="CWE-79", param="q")
+    runtime["runtime"]["payload"] = "<script>alert(1)</script>"
+    page = render(run([], [runtime]))
+    assert "<script>alert" not in page and "&lt;script&gt;alert" in page
+
+
+def test_page_lists_issues_in_rank_order_and_links_to_each():
+    from correlator.report import render
+    result = run(*mixed_inputs())
+    page = render(result)
+    ids = [i["issue_id"] for i in result["issues"] if i["reportable"]]
+    positions = [page.index(f'href="#{i}"') for i in ids]
+    assert positions == sorted(positions)
+    assert all(f'id="{i}"' in page for i in ids)
+
+
+def test_cli_writes_the_page_next_to_the_json(tmp_path):
+    out = tmp_path / "issues.json"
+    subprocess.run([sys.executable, "-m", "correlator.cli", "--sast", str(EXAMPLES / "sast_sqli.common.json"),
+                    "--dast", str(EXAMPLES / "dast_sqli.common.json"), "--out", str(out)], check=True, capture_output=True, cwd=ROOT)
+    page = (tmp_path / "issues.html").read_text()
+    assert "app/lib/repositories.php:4" in page and "/search.php" in page

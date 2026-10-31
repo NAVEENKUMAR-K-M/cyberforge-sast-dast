@@ -7,6 +7,7 @@ import os
 import sys
 
 from correlator.correlate import InputError, correlate, load_report
+from correlator.report import render
 
 
 def main(argv=None) -> int:
@@ -30,6 +31,9 @@ def main(argv=None) -> int:
     with open(args.out, "w", encoding="utf-8") as handle:
         json.dump(result, handle, indent=2)
         handle.write("\n")
+    page = os.path.splitext(args.out)[0] + ".html"
+    with open(page, "w", encoding="utf-8") as handle:
+        handle.write(render(result))
 
     stats = result["stats"]
     print(f"{stats['issues']} issues ({stats['reportable']} reported): {stats['confirmed']} Confirmed, "
@@ -38,7 +42,16 @@ def main(argv=None) -> int:
           f"{stats['suppressed']} code findings marked safe and left out")
     for message in result["diagnostics"]:
         print(f"warning: {message}")
-    print(f"Wrote {args.out}")
+    top = [i for i in result["issues"] if i["reportable"]][:5]
+    if top:
+        print("Top issues:")
+    for issue in top:
+        code = issue["evidence"]["code"]
+        where = issue["routes"][0]["path"] if issue["routes"] else "whole app"
+        if code:
+            where += f"  {code[0]['code']['file']}:{code[0]['code']['line']}"
+        print(f"  #{issue['rank']} {issue['label']:<12} CVSS {issue['risk_score']:<4} {issue['cwe']:<8} {where}")
+    print(f"Wrote {args.out} and {page}")
     return 0
 
 
