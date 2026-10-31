@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cyberforge.local/common/finding.schema.json",
+  "title": "CyberForge common finding format (FR-3)",
+  "description": "One shape for SAST and DAST findings. Each scanner writes its own native output plus a *.common.json in this format; the correlator reads only this.",
+  "type": "object",
+  "required": ["schema_version", "source", "tool", "findings"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "source": {"enum": ["sast", "dast"]},
+    "tool": {"type": "string"},
+    "target": {"type": "string"},
+    "stats": {"type": "object"},
+    "findings": {"type": "array", "items": {"$ref": "#/$defs/finding"}}
+  },
+  "$defs": {
+    "cwe": {"type": "string", "pattern": "^CWE-[0-9]+$"},
+    "param": {
+      "type": "object",
+      "required": ["name", "location"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {"type": "string"},
+        "location": {"enum": ["query", "body", "json", "path", "header", "cookie", "session", "file", "any", "unknown"]},
+        "value": {"type": "string"}
+      }
+    },
+    "route": {
+      "type": "object",
+      "required": ["path", "aliases", "selector", "methods"],
+      "additionalProperties": false,
+      "properties": {
+        "path": {"type": "string"},
+        "aliases": {"type": "array", "items": {"type": "string"}},
+        "selector": {"type": ["string", "null"]},
+        "methods": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "code": {
+      "type": "object",
+      "required": ["file", "line", "snippet", "function", "sink", "trace", "conditions", "stored_flow", "suppression_reason", "engines"],
+      "additionalProperties": false,
+      "properties": {
+        "file": {"type": "string"},
+        "line": {"type": "integer", "minimum": 1},
+        "snippet": {"type": "string"},
+        "function": {"type": "string"},
+        "sink": {"type": "string"},
+        "trace": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["file", "line", "note"],
+            "properties": {"file": {"type": "string"}, "line": {"type": "integer"}, "note": {"type": "string"}}
+          }
+        },
+        "conditions": {"type": "array", "items": {"type": "string"}},
+        "stored_flow": {"type": ["object", "null"]},
+        "suppression_reason": {"type": ["string", "null"]},
+        "engines": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "required": ["method", "url", "payload", "technique", "verification", "evidence"],
+      "additionalProperties": false,
+      "properties": {
+        "method": {"type": "string"},
+        "url": {"type": "string"},
+        "payload": {"type": "string"},
+        "technique": {"type": "string"},
+        "verification": {"enum": ["confirmed", "firm", "tentative"]},
+        "evidence": {"type": "object"}
+      }
+    },
+    "finding": {
+      "type": "object",
+      "required": ["id", "source", "tool", "cwe", "cwe_family", "title", "severity", "confidence", "status", "scope", "params", "routes", "code", "runtime"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "pattern": "^(sast|dast):[0-9a-f]+$"},
+        "source": {"enum": ["sast", "dast"]},
+        "tool": {"type": "string"},
+        "cwe": {"$ref": "#/$defs/cwe"},
+        "cwe_family": {"$ref": "#/$defs/cwe"},
+        "title": {"type": "string"},
+        "severity": {"enum": ["critical", "high", "medium", "low", "info"]},
+        "confidence": {"enum": ["high", "medium", "low"]},
+        "status": {"enum": ["open", "suppressed"]},
+        "scope": {"enum": ["endpoint", "app", "code"]},
+        "params": {"type": "array", "items": {"$ref": "#/$defs/param"}},
+        "routes": {"type": "array", "items": {"$ref": "#/$defs/route"}},
+        "code": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/code"}]},
+        "runtime": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/runtime"}]}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"source": {"const": "sast"}}},
+          "then": {"properties": {"code": {"type": "object"}, "runtime": {"type": "null"}}}
+        },
+        {
+          "if": {"properties": {"source": {"const": "dast"}}},
+          "then": {"properties": {"code": {"type": "null"}, "runtime": {"type": "object"}}}
+        }
+      ]
+    }
+  }
+}

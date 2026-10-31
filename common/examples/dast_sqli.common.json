@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.0",
+  "source": "dast",
+  "tool": "cyberforge-dast",
+  "target": "http://127.0.0.1:8088",
+  "stats": {},
+  "findings": [
+    {
+      "id": "dast:ff127f8e1c213fe4283b5634b34b11bae6066bd7",
+      "source": "dast",
+      "tool": "cyberforge-dast",
+      "cwe": "CWE-89",
+      "cwe_family": "CWE-89",
+      "title": "SQL Injection",
+      "severity": "high",
+      "confidence": "high",
+      "status": "open",
+      "scope": "endpoint",
+      "params": [
+        {
+          "name": "q",
+          "location": "query"
+        }
+      ],
+      "routes": [
+        {
+          "path": "/search.php",
+          "aliases": [],
+          "selector": null,
+          "methods": [
+            "GET"
+          ]
+        }
+      ],
+      "code": null,
+      "runtime": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8088/search.php?q=anvil",
+        "payload": "'",
+        "technique": "error-based",
+        "verification": "confirmed",
+        "evidence": {
+          "request": "",
+          "response_excerpt": "<br />\n<b>Fatal error</b>:  Uncaught PDOException: SQLSTATE[HY000]: General error: 1 unrecognized token: &quot;'&quot; i",
+          "matched": "unrecognized token",
+          "baseline_status": 200,
+          "probe_status": 200
+        }
+      }
+    }
+  ]
+}

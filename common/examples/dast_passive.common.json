@@ -1,0 +1,82 @@
+{
+  "schema_version": "1.0",
+  "source": "dast",
+  "tool": "cyberforge-dast",
+  "target": "http://127.0.0.1:8088",
+  "stats": {},
+  "findings": [
+    {
+      "id": "dast:bd48ff9b3e99f0399534040bf474057c4518f965",
+      "source": "dast",
+      "tool": "cyberforge-dast",
+      "cwe": "CWE-1021",
+      "cwe_family": "CWE-1021",
+      "title": "Missing Content-Security-Policy header",
+      "severity": "medium",
+      "confidence": "medium",
+      "status": "open",
+      "scope": "app",
+      "params": [],
+      "routes": [],
+      "code": null,
+      "runtime": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8088",
+        "payload": "",
+        "technique": "",
+        "verification": "firm",
+        "evidence": {
+          "request": "",
+          "response_excerpt": "",
+          "matched": "",
+          "baseline_status": null,
+          "probe_status": null,
+          "affected_urls": [
+            "http://127.0.0.1:8088",
+            "http://127.0.0.1:8088/page.php?name=about",
+            "http://127.0.0.1:8088/page.php?name=shipping",
+            "http://127.0.0.1:8088/product.php?id=1",
+            "http://127.0.0.1:8088/product.php?id=2",
+            "http://127.0.0.1:8088/product.php?id=3",
+            "http://127.0.0.1:8088/products.php",
+            "http://127.0.0.1:8088/search.php?q=anvil"
+          ],
+          "affected_count": 8
+        }
+      }
+    },
+    {
+      "id": "dast:32572aeed10adb3fab0ed373529d7df90255e5ab",
+      "source": "dast",
+      "tool": "cyberforge-dast",
+      "cwe": "CWE-200",
+      "cwe_family": "CWE-489",
+      "title": "Server/technology version disclosure",
+      "severity": "low",
+      "confidence": "medium",
+      "status": "open",
+      "scope": "app",
+      "params": [],
+      "routes": [],
+      "code": null,
+      "runtime": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8088",
+        "payload": "",
+        "technique": "",
+        "verification": "firm",
+        "evidence": {
+          "request": "",
+          "response_excerpt": "",
+          "matched": "Server: Apache/2.4.69 (Debian); X-Powered-By: PHP/8.2.35",
+          "baseline_status": null,
+          "probe_status": null,
+          "affected_urls": [
+            "http://127.0.0.1:8088"
+          ],
+          "affected_count": 1
+        }
+      }
+    }
+  ]
+}

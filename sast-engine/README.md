@@ -2,7 +2,7 @@
 
 Static analysis for PHP web apps, built for the CyberForge SAST and DAST correlation challenge. It reads source code and reports where user input reaches something dangerous, along with the URL that triggers it, so each finding can later be linked to a runtime proof.
 
-This folder holds the SAST side. The DAST engine lives in `../dast-engine`, and it and the correlator connect to this engine through the [output format](docs/finding-format.md).
+This folder holds the SAST side. The DAST engine lives in `../dast-engine`, and it and the correlator connect to this engine through the [output format](docs/finding-format.md). Every scan also writes `findings.common.json`, the one finding format both scanners share, described in [common/FORMAT.md](../common/FORMAT.md).
 
 ## Quick start
 

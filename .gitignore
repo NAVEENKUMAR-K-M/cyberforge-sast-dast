@@ -1,0 +1,16 @@
+# Repo-root ignores. Each engine also has its own .gitignore
+# (dast-engine/.gitignore, sast-engine/.gitignore) for engine-specific paths.
+
+# Python bytecode / caches — never commit (covers common/, scripts, anything new at the root)
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Virtual environments
+.venv/
+venv/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp

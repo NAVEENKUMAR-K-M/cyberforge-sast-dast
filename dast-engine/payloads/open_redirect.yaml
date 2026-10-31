@@ -10,6 +10,7 @@ payload_templates:
   - "http://{canary}/"
   - "//{canary}/"
   - "/\\{canary}"      # browsers normalize a leading "/\" the same as "//"
+  - "HTTPS://{canary}/"  # catches a case-sensitive "startswith http://" validator
 # Deliberately NOT included: single-slash "https:/{canary}" and encoded
 # "/%2f{canary}" variants. Neither reliably produces a cross-origin
 # redirect in standard browsers (confirmed via urlparse: both come back

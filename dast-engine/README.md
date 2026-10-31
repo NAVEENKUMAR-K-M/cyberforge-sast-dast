@@ -105,6 +105,12 @@ python main.py scan --target http://localhost:8080 --config dvwa.yaml
 python eval/score.py output/dvwa_results.json eval/answer_keys/dvwa.json
 ```
 
+Each scan writes two files side by side: the native `output/dvwa_results.json`
+and `output/dvwa_results.common.json`, the one finding format both scanners
+share (SQL injection is `CWE-89` on both sides). See
+[common/FORMAT.md](../common/FORMAT.md); check a file with
+`python ../common/validate.py output/dvwa_results.common.json`.
+
 `dvwa.yaml`'s `auth.post_login` pins the difficulty level to `low` right
 after login (DVWA stores it per-session, so a fresh login always resets
 it) — this is config-driven, not hardcoded into `auth.py`, so any target

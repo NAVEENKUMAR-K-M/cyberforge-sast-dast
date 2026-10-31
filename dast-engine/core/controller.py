@@ -53,7 +53,19 @@ async def run_scan(config: dict) -> dict:
         route_map = load_route_map(config["route_map_path"]) if config.get("route_map_path") else []
         seed_urls = config.get("seed_urls") or [target]
         crawl_result = await crawl(rm, scope_guard, seed_urls, max_pages=config.get("max_pages", 200))
-        points = build_injection_points(route_map, crawl_result)
+        points = build_injection_points(route_map, crawl_result, base_url=target)
+        # Crawled points are already guaranteed in-scope (the crawler checks
+        # before enqueueing a URL at all), but route-map-sourced ones never
+        # go through that check -- a route map legitimately lists every
+        # route the code has, denylisted ones included (logout.php,
+        # setup.php, ...). Sending them anyway isn't just wasted effort:
+        # RequestManager.send() *raises* ScopeViolation on an out-of-scope
+        # URL rather than skipping it, which crashed the whole scan on the
+        # first denylisted route-map point reached (confirmed in testing).
+        before = len(points)
+        points = [p for p in points if scope_guard.is_in_scope(p.url)]
+        if before != len(points):
+            logger.info("Dropped %d route-map point(s) outside scope/denylist", before - len(points))
         logger.info("Discovered %d injection points across %d URLs", len(points), len(crawl_result.urls))
 
         baselines = {}

@@ -10,7 +10,7 @@ so that /orders/17 and /orders/42 count as one route.
 from __future__ import annotations
 
 import re
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, urljoin
 
 from core.models import InjectionPoint, ParamLocation
 from discovery.crawler import CrawlResult
@@ -30,9 +30,23 @@ def derive_route_template(path: str) -> str:
     return "/".join(out)
 
 
-def from_route_map(routes: list[dict]) -> list[InjectionPoint]:
+def from_route_map(routes: list[dict], base_url: str = "") -> list[InjectionPoint]:
+    """`base_url`, when given, resolves each route's bare path (e.g.
+    "/account/orders.php", exactly what SAST's routes.json and
+    route_map_loader produce) into a concrete request URL. Without it, the
+    request manager's scope guard rejects every route-map-sourced request
+    outright -- confirmed in testing: a scan crashes on the first baseline
+    request with "Refusing out-of-scope request: /account/orders.php",
+    since a bare path has no host for the scope guard to check against.
+    `route_template` always stays the original bare path."""
     points = []
     for r in routes:
+        # Required params (e.g. DVWA's "Submit" button, route_map_loader's
+        # required_params): without these the request never reaches the
+        # vulnerable code at all. Carried on every point for this route so
+        # build_request() sends them alongside whichever param is actually
+        # being fuzzed -- the same fix already applied to crawled GET forms.
+        required = r.get("required_params") or {}
         for p in r.get("params", []):
             if not p.get("name"):
                 continue
@@ -41,13 +55,16 @@ def from_route_map(routes: list[dict]) -> list[InjectionPoint]:
                 location = ParamLocation(loc)
             except ValueError:
                 location = ParamLocation.QUERY
+            body_template = {k: v for k, v in required.items() if k != p["name"]} or None
+            url = urljoin(base_url, r["path"].lstrip("/")) if base_url else r["path"]
             points.append(
                 InjectionPoint(
                     method=r["method"],
-                    url=r["path"],  # may be a template; resolved later against base_url
+                    url=url,
                     route_template=r["path"],
                     param=p["name"],
                     param_location=location,
+                    body_template=body_template,
                     meta={"type": p.get("type"), "origin": "route_map"},
                 )
             )
@@ -109,12 +126,13 @@ def build_injection_points(
     route_map: list[dict] | None,
     crawl_result: CrawlResult | None,
     openapi_routes: list[dict] | None = None,
+    base_url: str = "",
 ) -> list[InjectionPoint]:
     points: list[InjectionPoint] = []
     if route_map:
-        points.extend(from_route_map(route_map))
+        points.extend(from_route_map(route_map, base_url))
     if openapi_routes:
-        points.extend(from_route_map(openapi_routes))
+        points.extend(from_route_map(openapi_routes, base_url))
     if crawl_result:
         points.extend(from_crawl(crawl_result))
     return dedupe_points(points)

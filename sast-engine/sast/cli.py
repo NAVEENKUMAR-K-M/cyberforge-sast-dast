@@ -6,6 +6,7 @@ import json
 import os
 import sys
 
+from sast.common_export import to_common
 from sast.core.language import ScanOptions
 from sast.lang.php.adapter import PhpAdapter
 from sast.sarif import to_sarif
@@ -38,6 +39,8 @@ def main(argv=None) -> int:
         json.dump({**meta, "findings": result.findings}, handle, indent=2)
     with open(os.path.join(args.out, "routes.json"), "w") as handle:
         json.dump({**meta, "routes": result.routes}, handle, indent=2)
+    with open(os.path.join(args.out, "findings.common.json"), "w") as handle:  # FR-3: common/FORMAT.md
+        json.dump(to_common(result), handle, indent=2)
     if args.sarif:
         with open(os.path.join(args.out, "findings.sarif"), "w") as handle:
             json.dump(to_sarif(result), handle, indent=2)
@@ -59,7 +62,7 @@ def _print_summary(result, out) -> None:
         print(f"  {item['severity']:<8} {item['cwe']:<8} {item['file']}:{item['line']}  {routes}")
     if len(open_items) > 25:
         print(f"  ... and {len(open_items) - 25} more")
-    print(f"Wrote {os.path.join(out, 'findings.json')} and {os.path.join(out, 'routes.json')}")
+    print(f"Wrote {os.path.join(out, 'findings.json')}, {os.path.join(out, 'routes.json')} and {os.path.join(out, 'findings.common.json')}")
 
 
 if __name__ == "__main__":

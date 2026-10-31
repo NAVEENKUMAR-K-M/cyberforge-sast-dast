@@ -18,8 +18,11 @@ unix_targets:
 windows_targets:
   - path: "windows/win.ini"
     signature: "[fonts]"
-  - path: "boot.ini"
-    signature: "[boot loader]"
+  - path: "windows/system.ini"
+    signature: "[386Enh]"
+# boot.ini was dropped: it hasn't existed by default since Windows XP
+# (Vista+ uses BCD instead) -- on any current target it's dead weight,
+# a traversal attempt that can never succeed regardless of vulnerability.
 
 traversal_sequences:
   - "../"

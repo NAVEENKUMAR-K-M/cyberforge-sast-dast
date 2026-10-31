@@ -17,3 +17,12 @@ marker_payloads:
   - "\"{marker}\""
   - "'{marker}'"
   - "{marker}\"'><"
+  # Attribute event-handler breakout: the single most common real-world
+  # attribute-context XSS -- break out of the current attribute's quote
+  # and add a whole new attribute, no closing ">" needed. Both quote
+  # styles since apps use either convention.
+  - "\" onmouseover=\"{marker}"
+  - "' onmouseover='{marker}"
+  # A realistic tag-based payload (vs. the bare, nameless "<marker>"
+  # above) -- more convincing evidence, same verbatim-survival check.
+  - "'><svg onload={marker}>"

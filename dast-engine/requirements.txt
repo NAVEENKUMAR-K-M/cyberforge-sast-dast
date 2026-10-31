@@ -8,6 +8,7 @@ tenacity==9.0.0
 pytest==8.3.3
 pytest-asyncio==0.24.0
 Flask==3.0.3
+jsonschema>=4   # validates the common-format export against common/finding.schema.json
 
 # Optional, off by default (install extras to enable):
 # playwright==1.47.0            -> browser_verifier.py (DOM-XSS confirmation)

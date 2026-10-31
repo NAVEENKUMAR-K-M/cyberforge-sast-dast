@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 
 from core.models import Finding
+from results.common_export import write_common
 from results.dedupe import dedupe_findings, filter_exportable
 
 logger = logging.getLogger("dast.normalizer")
@@ -53,3 +54,5 @@ def write_output(output: dict, path: str | Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(output, indent=2, sort_keys=False), encoding="utf-8")
     logger.info("Wrote %d findings to %s", output.get("finding_count", 0), path)
+    # FR-3: the same findings in the format shared with the SAST engine.
+    logger.info("Wrote common-format findings to %s", write_common(output, path))

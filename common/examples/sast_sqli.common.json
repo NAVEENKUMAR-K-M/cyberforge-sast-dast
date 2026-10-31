@@ -1,0 +1,84 @@
+{
+  "schema_version": "1.0",
+  "source": "sast",
+  "tool": "cyberforge-sast",
+  "target": "benchmarks/shop",
+  "stats": {},
+  "findings": [
+    {
+      "id": "sast:9ef45cf2c37f2881",
+      "source": "sast",
+      "tool": "cyberforge-sast",
+      "cwe": "CWE-89",
+      "cwe_family": "CWE-89",
+      "title": "SQL injection",
+      "severity": "critical",
+      "confidence": "high",
+      "status": "open",
+      "scope": "endpoint",
+      "params": [
+        {
+          "name": "q",
+          "location": "any"
+        }
+      ],
+      "routes": [
+        {
+          "path": "/search.php",
+          "aliases": [],
+          "selector": null,
+          "methods": [
+            "GET",
+            "POST"
+          ]
+        }
+      ],
+      "code": {
+        "file": "app/lib/repositories.php",
+        "line": 4,
+        "snippet": "return run_query(\"SELECT id, name, price FROM products WHERE name LIKE '%\" . $term . \"%'\");",
+        "function": "ProductRepository::search",
+        "sink": "query",
+        "trace": [
+          {
+            "file": "app/lib/http.php",
+            "line": 3,
+            "note": "read from any parameter 'q'"
+          },
+          {
+            "file": "app/public/search.php",
+            "line": 3,
+            "note": "returned from input()"
+          },
+          {
+            "file": "app/public/search.php",
+            "line": 3,
+            "note": "assigned to $q"
+          },
+          {
+            "file": "app/public/search.php",
+            "line": 4,
+            "note": "passed to ProductRepository::search($term)"
+          },
+          {
+            "file": "app/lib/repositories.php",
+            "line": 4,
+            "note": "passed to run_query($sql)"
+          },
+          {
+            "file": "app/lib/db.php",
+            "line": 21,
+            "note": "reaches sink query"
+          }
+        ],
+        "conditions": [],
+        "stored_flow": null,
+        "suppression_reason": null,
+        "engines": [
+          "taint"
+        ]
+      },
+      "runtime": null
+    }
+  ]
+}
