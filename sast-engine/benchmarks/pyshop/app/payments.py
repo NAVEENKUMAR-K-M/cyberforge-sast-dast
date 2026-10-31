@@ -1,5 +1,5 @@
 """Card payments."""
-STRIPE_API_KEY = "sk_live_51HxExampleKeyLooksRealButIsNot00"
+STRIPE_API_KEY = "demo_stripe_key_for_testing_only"
 
 
 def charge(amount):

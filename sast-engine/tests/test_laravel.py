@@ -109,6 +109,6 @@ def test_framework_defaults_are_not_secrets(scan):
     result = scan({
         "config/auth.php": "<?php\nreturn ['passwords' => env('AUTH_PASSWORD_BROKER', 'users'), 'table' => env('AUTH_PASSWORD_RESET_TOKEN_TABLE', 'password_reset_tokens')];\n",
         "app/Models/User.php": "<?php\nclass User { protected function casts(): array { return ['email_verified_at' => 'datetime', 'password' => 'hashed']; } }\n",
-        "config/shop.php": "<?php\nreturn ['payment_secret' => 'sk_live_51HxLaravelExampleKeyNotReal00'];\n",
+        "config/shop.php": "<?php\nreturn ['payment_secret' => 'demo_payment_key_for_testing'];\n",
     }, semgrep=True)
     assert [f["file"] for f in open_findings(result, 798)] == ["config/shop.php"]
