@@ -1,0 +1,101 @@
+# Pattern rules for bugs that don't need taint tracking. Flow bugs live in sast/lang/php/interp.py.
+rules:
+  - id: secret-assign
+    languages: [php]
+    severity: ERROR
+    message: Hard-coded secret assigned to a variable
+    metadata: {cwe: 798, secret: true}
+    patterns:
+      - pattern: $VAR = "...";
+      - metavariable-regex:
+          metavariable: $VAR
+          regex: (?i).*(pass(word|wd|phrase)?|pwd|secret|api_?key|auth_?key|access_?key|private_?key|token|credential).*
+  - id: secret-property
+    languages: [php]
+    severity: ERROR
+    message: Hard-coded secret in a class property
+    metadata: {cwe: 798, secret: true}
+    patterns:
+      - pattern-regex: (?i)(public|private|protected|var)\s+(static\s+)?\$\w*(pass(word|wd)?|pwd|secret|api_?key|auth_?key|access_?key|private_?key|token)\w*\s*=\s*['"][^'"]+['"]
+  - id: secret-array
+    languages: [php]
+    severity: ERROR
+    message: Hard-coded secret in a config array
+    metadata: {cwe: 798, secret: true}
+    patterns:
+      - pattern-either:
+          - pattern-regex: (?i)\$\w+\s*\[\s*['"][\w-]*(pass(word|wd)?|pwd|secret|api_?key|auth_?key|access_?key|private_?key|token)[\w-]*['"]\s*\]\s*=\s*['"][^'"]+['"]
+          - pattern-regex: (?i)['"][\w-]*(pass(word|wd)?|pwd|secret|api_?key|auth_?key|access_?key|private_?key|token)[\w-]*['"]\s*=>\s*['"][^'"]+['"]
+  - id: secret-define
+    languages: [php]
+    severity: ERROR
+    message: Hard-coded secret in a constant
+    metadata: {cwe: 798, secret: true}
+    patterns:
+      - pattern-either:
+          - pattern-regex: (?i)define\s*\(\s*['"][\w-]*(pass(word|wd)?|pwd|secret|api_?key|auth_?key|access_?key|private_?key|token)[\w-]*['"]\s*,\s*['"][^'"]+['"]
+          - pattern-regex: (?i)\bconst\s+\w*(PASS(WORD|WD)?|PWD|SECRET|API_?KEY|AUTH_?KEY|ACCESS_?KEY|PRIVATE_?KEY|TOKEN)\w*\s*=\s*['"][^'"]+['"]
+  - id: secret-compare
+    languages: [php]
+    severity: ERROR
+    message: Password compared with a hard-coded value
+    metadata: {cwe: 798, secret: true}
+    patterns:
+      - pattern-regex: (?i)\$\w*(pass(word|wd)?|pwd)\w*\s*={2,3}\s*['"][^'"]+['"]
+  - id: secret-known-format
+    languages: [php]
+    severity: ERROR
+    message: Credential in a known key format
+    metadata: {cwe: 798, secret: true, known_format: true}
+    pattern-regex: (AKIA[0-9A-Z]{16}|sk_live_[0-9a-zA-Z]{16,}|ghp_[0-9a-zA-Z]{36}|xox[bp]-[0-9a-zA-Z-]{20,}|-----BEGIN (RSA |EC )?PRIVATE KEY-----)
+  - id: secret-db-connect
+    languages: [php]
+    severity: ERROR
+    message: Database password hard-coded in a connection call
+    metadata: {cwe: 798, secret: true}
+    pattern-either:
+      - pattern: mysqli_connect($H, $U, "...", ...)
+      - pattern: mysql_connect($H, $U, "...", ...)
+      - pattern: new mysqli($H, $U, "...", ...)
+      - pattern: new PDO($D, $U, "...", ...)
+  - id: weak-password-hash
+    languages: [php]
+    severity: WARNING
+    message: Password hashed with a weak algorithm
+    metadata: {cwe: 328}
+    patterns:
+      - pattern-either:
+          - pattern: md5(...)
+          - pattern: sha1(...)
+          - pattern: hash(...)
+      - pattern-regex: (?i)(md5\s*\(|sha1\s*\(|hash\s*\(\s*['"](md5|sha1|crc32)['"]\s*,)[^)]*(pass|pwd)
+  - id: insecure-random-token
+    languages: [php]
+    severity: WARNING
+    message: Security token built from a predictable random source
+    metadata: {cwe: 338}
+    patterns:
+      - pattern-either:
+          - pattern: $VAR = <... rand(...) ...>;
+          - pattern: $VAR = <... mt_rand(...) ...>;
+          - pattern: $VAR = <... uniqid(...) ...>;
+      - metavariable-regex:
+          metavariable: $VAR
+          regex: (?i).*(token|secret|nonce|session|reset|csrf|otp|api_?key).*
+  - id: debug-display-errors
+    languages: [php]
+    severity: INFO
+    message: Errors are shown to visitors
+    metadata: {cwe: 209}
+    pattern-either:
+      - pattern: ini_set("display_errors", "1")
+      - pattern: ini_set("display_errors", 1)
+      - pattern: ini_set("display_errors", "On")
+      - pattern: ini_set("display_errors", "on")
+      - pattern: ini_set("display_errors", true)
+  - id: debug-phpinfo
+    languages: [php]
+    severity: INFO
+    message: phpinfo() exposes server details
+    metadata: {cwe: 200}
+    pattern: phpinfo(...)

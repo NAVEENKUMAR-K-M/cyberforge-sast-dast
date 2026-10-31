@@ -1,0 +1,30 @@
+{
+  "app": "benchmarks/external/mutillidae",
+  "note": "Hand-labelled from the source for well-known bugs; not exhaustive. Bugs without a file are matched by route and parameter, because the fix could fairly sit in the page or in the query class.",
+  "pairs": [
+    {"id": "cmd-dns", "cwe": 78, "file": "src/dns-lookup.php", "route": "/index.php", "selector": "page=dns-lookup.php", "param": "target_host", "hard": "assignment inside a ternary"},
+    {"id": "cmd-echo", "cwe": 78, "file": "src/echo.php", "route": "/index.php", "selector": "page=echo.php", "param": "message"},
+    {"id": "cmd-rest-dns", "cwe": 78, "file": "src/webservices/rest/ws-dns-lookup.php"},
+    {"id": "cmd-rest-echo", "cwe": 78, "file": "src/webservices/rest/ws-echo.php"},
+    {"id": "cmd-soap-dns", "cwe": 78, "file": "src/webservices/soap/ws-dns-lookup.php", "hard": "SOAP handler registered by name"},
+    {"id": "cmd-soap-echo", "cwe": 78, "file": "src/webservices/soap/ws-echo.php", "hard": "SOAP handler registered by name"},
+    {"id": "sqli-user-info", "cwe": 89, "route": "/index.php", "selector": "page=user-info.php", "param": "username", "hard": "query built in another class"},
+    {"id": "sqli-login", "cwe": 89, "file": "src/classes/SQLQueryHandler.php", "route": "/index.php", "param": "username", "hard": "login processed from an include"},
+    {"id": "sqli-blog", "cwe": 89, "route": "/index.php", "selector": "page=view-someones-blog.php", "param": "author"},
+    {"id": "sqli-pentest", "cwe": 89, "route": "/ajax/lookup-pen-test-tool.php", "param": "ToolID"},
+    {"id": "path-include", "cwe": 22, "file": "src/index.php", "route": "/index.php", "param": "page"},
+    {"id": "path-text-viewer", "cwe": 22, "file": "src/text-file-viewer.php", "param": "textfile"},
+    {"id": "path-source-viewer", "cwe": 22, "file": "src/source-viewer.php", "param": "phpfile"},
+    {"id": "xss-dns", "cwe": 79, "file": "src/dns-lookup.php", "param": "target_host"},
+    {"id": "xss-echo", "cwe": 79, "file": "src/echo.php", "param": "message"},
+    {"id": "xss-blog-stored", "cwe": 79, "route": "/index.php", "selector": "page=view-someones-blog.php", "param": "blog_entry", "stored": true},
+    {"id": "redirect-log", "cwe": 601, "file": "src/redirectandlog.php", "param": "forwardurl", "hard": "meta refresh, not header()"}
+  ],
+  "code_only": [
+    {"id": "secret-db-config", "cwe": 798, "file": "src/includes/database-config.inc"},
+    {"id": "secret-mysql-handler", "cwe": 798, "file": "src/classes/MySQLHandler.php", "lines": [55, 56]},
+    {"id": "secret-jwt", "cwe": 798, "file": "src/webservices/includes/ws-constants.php"}
+  ],
+  "runtime_only": [],
+  "decoys": []
+}

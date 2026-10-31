@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CyberForge SAST output",
+  "description": "The contract between the SAST engine and the correlator. findings.json has `findings`; routes.json has `routes`.",
+  "type": "object",
+  "required": ["language", "source_root", "web_root", "stats"],
+  "properties": {
+    "language": {"type": "string"},
+    "source_root": {"type": "string"},
+    "web_root": {"type": "string"},
+    "stats": {"type": "object"},
+    "findings": {"type": "array", "items": {"$ref": "#/$defs/finding"}},
+    "routes": {"type": "array", "items": {"$ref": "#/$defs/route"}}
+  },
+  "$defs": {
+    "cwe": {"type": "string", "pattern": "^CWE-[0-9]+$"},
+    "param": {
+      "type": "object",
+      "required": ["name", "location"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {"type": "string"},
+        "location": {"enum": ["query", "body", "any", "cookie", "header", "path", "file", "session", "unknown"]},
+        "value": {"type": "string"}
+      }
+    },
+    "route_ref": {
+      "type": "object",
+      "required": ["id", "methods", "path", "selector"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string"},
+        "methods": {"type": "array", "items": {"type": "string"}},
+        "path": {"type": "string"},
+        "selector": {"type": ["string", "null"]}
+      }
+    },
+    "route": {
+      "type": "object",
+      "required": ["id", "kind", "methods", "path", "aliases", "selector", "handler", "params", "required_params", "form_fields"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string"},
+        "kind": {"enum": ["file", "selector", "framework"]},
+        "methods": {"type": "array", "items": {"type": "string"}},
+        "path": {"type": "string"},
+        "aliases": {"type": "array", "items": {"type": "string"}},
+        "selector": {"type": ["string", "null"]},
+        "handler": {
+          "type": "object",
+          "required": ["file", "function", "start_line", "end_line"],
+          "additionalProperties": false,
+          "properties": {
+            "file": {"type": "string"},
+            "function": {"type": "string"},
+            "start_line": {"type": "integer"},
+            "end_line": {"type": "integer"}
+          }
+        },
+        "params": {"type": "array", "items": {"$ref": "#/$defs/param"}},
+        "required_params": {"type": "array", "items": {"$ref": "#/$defs/param"}},
+        "form_fields": {"type": "array", "items": {"type": "object"}}
+      }
+    },
+    "finding": {
+      "type": "object",
+      "required": ["fingerprint", "tool", "cwe", "cwe_family", "title", "severity", "confidence", "file", "line", "snippet",
+                   "function", "sink", "status", "suppression_reason", "source_params", "trace", "routes", "conditions",
+                   "stored_flow", "engines"],
+      "additionalProperties": false,
+      "properties": {
+        "fingerprint": {"type": "string"},
+        "tool": {"const": "sast"},
+        "cwe": {"$ref": "#/$defs/cwe"},
+        "cwe_family": {"$ref": "#/$defs/cwe"},
+        "title": {"type": "string"},
+        "severity": {"enum": ["critical", "high", "medium", "low"]},
+        "confidence": {"enum": ["high", "medium", "low"]},
+        "file": {"type": "string"},
+        "line": {"type": "integer", "minimum": 1},
+        "snippet": {"type": "string"},
+        "function": {"type": "string"},
+        "sink": {"type": "string"},
+        "status": {"enum": ["open", "suppressed"]},
+        "suppression_reason": {"type": ["string", "null"]},
+        "source_params": {"type": "array", "items": {"$ref": "#/$defs/param"}},
+        "trace": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["file", "line", "note"],
+            "additionalProperties": false,
+            "properties": {"file": {"type": "string"}, "line": {"type": "integer"}, "note": {"type": "string"}}
+          }
+        },
+        "routes": {"type": "array", "items": {"$ref": "#/$defs/route_ref"}},
+        "conditions": {"type": "array", "items": {"type": "string"}},
+        "stored_flow": {
+          "type": ["object", "null"],
+          "required": ["store", "write_file", "write_line", "write_routes", "read_file", "read_line"],
+          "additionalProperties": false,
+          "properties": {
+            "store": {"type": "string"},
+            "write_file": {"type": "string"},
+            "write_line": {"type": "integer"},
+            "write_routes": {"type": "array", "items": {"$ref": "#/$defs/route_ref"}},
+            "read_file": {"type": "string"},
+            "read_line": {"type": "integer"}
+          }
+        },
+        "engines": {"type": "array", "items": {"enum": ["taint", "semgrep"]}}
+      }
+    }
+  }
+}

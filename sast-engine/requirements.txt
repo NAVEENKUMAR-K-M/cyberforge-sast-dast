@@ -1,0 +1,5 @@
+tree-sitter==0.26.0
+tree-sitter-php==0.25.1
+semgrep==1.183.0
+pytest==9.2.0
+jsonschema>=4
