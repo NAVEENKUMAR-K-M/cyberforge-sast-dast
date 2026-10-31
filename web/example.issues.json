@@ -1,0 +1,1407 @@
+{
+  "schema_version": "1.0",
+  "inputs": {
+    "sast": {
+      "path": "",
+      "target": "sast-engine/benchmarks/shop"
+    },
+    "dast": {
+      "path": "",
+      "target": "http://127.0.0.1:8088"
+    }
+  },
+  "base_path": "",
+  "issues": [
+    {
+      "issue_id": "issue:e3faf0365c652617",
+      "label": "Confirmed",
+      "cwe": "CWE-89",
+      "cwe_family": "CWE-89",
+      "title": "SQL injection",
+      "severity": "critical",
+      "confidence": "high",
+      "reportable": true,
+      "stored": false,
+      "ambiguous": false,
+      "candidates": [],
+      "routes": [
+        {
+          "path": "/search.php",
+          "aliases": [],
+          "selector": null,
+          "methods": [
+            "GET",
+            "POST"
+          ]
+        }
+      ],
+      "params": [
+        {
+          "name": "q",
+          "location": "any"
+        },
+        {
+          "name": "q",
+          "location": "query"
+        }
+      ],
+      "sast_ids": [
+        "sast:9ef45cf2c37f2881"
+      ],
+      "dast_ids": [
+        "dast:ff127f8e1c213fe4283b5634b34b11bae6066bd7"
+      ],
+      "evidence": {
+        "code": [
+          {
+            "id": "sast:9ef45cf2c37f2881",
+            "source": "sast",
+            "tool": "cyberforge-sast",
+            "cwe": "CWE-89",
+            "cwe_family": "CWE-89",
+            "title": "SQL injection",
+            "severity": "critical",
+            "confidence": "high",
+            "status": "open",
+            "scope": "endpoint",
+            "params": [
+              {
+                "name": "q",
+                "location": "any"
+              }
+            ],
+            "routes": [
+              {
+                "path": "/search.php",
+                "aliases": [],
+                "selector": null,
+                "methods": [
+                  "GET",
+                  "POST"
+                ]
+              }
+            ],
+            "code": {
+              "file": "app/lib/repositories.php",
+              "line": 4,
+              "snippet": "return run_query(\"SELECT id, name, price FROM products WHERE name LIKE '%\" . $term . \"%'\");",
+              "function": "ProductRepository::search",
+              "sink": "query",
+              "trace": [
+                {
+                  "file": "app/lib/http.php",
+                  "line": 3,
+                  "note": "read from any parameter 'q'"
+                },
+                {
+                  "file": "app/public/search.php",
+                  "line": 3,
+                  "note": "returned from input()"
+                },
+                {
+                  "file": "app/public/search.php",
+                  "line": 3,
+                  "note": "assigned to $q"
+                },
+                {
+                  "file": "app/public/search.php",
+                  "line": 4,
+                  "note": "passed to ProductRepository::search($term)"
+                },
+                {
+                  "file": "app/lib/repositories.php",
+                  "line": 4,
+                  "note": "passed to run_query($sql)"
+                },
+                {
+                  "file": "app/lib/db.php",
+                  "line": 21,
+                  "note": "reaches sink query"
+                }
+              ],
+              "conditions": [],
+              "stored_flow": null,
+              "suppression_reason": null,
+              "engines": [
+                "taint"
+              ]
+            },
+            "runtime": null
+          }
+        ],
+        "runtime": [
+          {
+            "id": "dast:ff127f8e1c213fe4283b5634b34b11bae6066bd7",
+            "source": "dast",
+            "tool": "cyberforge-dast",
+            "cwe": "CWE-89",
+            "cwe_family": "CWE-89",
+            "title": "SQL Injection",
+            "severity": "high",
+            "confidence": "high",
+            "status": "open",
+            "scope": "endpoint",
+            "params": [
+              {
+                "name": "q",
+                "location": "query"
+              }
+            ],
+            "routes": [
+              {
+                "path": "/search.php",
+                "aliases": [],
+                "selector": null,
+                "methods": [
+                  "GET"
+                ]
+              }
+            ],
+            "code": null,
+            "runtime": {
+              "method": "GET",
+              "url": "http://127.0.0.1:8088/search.php?q=anvil",
+              "payload": "'",
+              "technique": "error-based",
+              "verification": "confirmed",
+              "evidence": {
+                "request": "",
+                "response_excerpt": "<br />\n<b>Fatal error</b>:  Uncaught PDOException: SQLSTATE[HY000]: General error: 1 unrecognized token: &quot;'&quot; i",
+                "matched": "unrecognized token",
+                "baseline_status": 200,
+                "probe_status": 200
+              }
+            }
+          }
+        ]
+      },
+      "cvss": {
+        "version": "3.0",
+        "vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H/E:F/RC:C",
+        "base_score": 9.8,
+        "temporal_score": 9.6,
+        "rating": "critical"
+      },
+      "risk_score": 9.6,
+      "risk_factors": [
+        "CWE-89 baseline: AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+        "E:F, a runtime test exploited it",
+        "RC:C, found in both the code and the running app"
+      ],
+      "rank": 1
+    },
+    {
+      "issue_id": "issue:2e207bba5e3f400f",
+      "label": "Code only",
+      "cwe": "CWE-78",
+      "cwe_family": "CWE-78",
+      "title": "Command injection",
+      "severity": "critical",
+      "confidence": "high",
+      "reportable": true,
+      "stored": false,
+      "ambiguous": false,
+      "candidates": [],
+      "routes": [
+        {
+          "path": "/admin/backup.php",
+          "aliases": [],
+          "selector": null,
+          "methods": [
+            "POST"
+          ]
+        }
+      ],
+      "params": [
+        {
+          "name": "label",
+          "location": "body"
+        }
+      ],
+      "sast_ids": [
+        "sast:2ab90485e484e0a1"
+      ],
+      "dast_ids": [],
+      "evidence": {
+        "code": [
+          {
+            "id": "sast:2ab90485e484e0a1",
+            "source": "sast",
+            "tool": "cyberforge-sast",
+            "cwe": "CWE-78",
+            "cwe_family": "CWE-78",
+            "title": "Command injection",
+            "severity": "critical",
+            "confidence": "high",
+            "status": "open",
+            "scope": "endpoint",
+            "params": [
+              {
+                "name": "label",
+                "location": "body"
+              }
+            ],
+            "routes": [
+              {
+                "path": "/admin/backup.php",
+                "aliases": [],
+                "selector": null,
+                "methods": [
+                  "POST"
+                ]
+              }
+            ],
+            "code": {
+              "file": "app/public/admin/backup.php",
+              "line": 3,
+              "snippet": "$output = `tar czf /tmp/$label.tgz /var/www/shop/files`;",
+              "function": "<top-level>",
+              "sink": "backticks",
+              "trace": [
+                {
+                  "file": "app/public/admin/backup.php",
+                  "line": 2,
+                  "note": "read from body parameter 'label'"
+                },
+                {
+                  "file": "app/public/admin/backup.php",
+                  "line": 2,
+                  "note": "str_replace() filter, not a real protection"
+                },
+                {
+                  "file": "app/public/admin/backup.php",
+                  "line": 2,
+                  "note": "assigned to $label"
+                },
+                {
+                  "file": "app/public/admin/backup.php",
+                  "line": 3,
+                  "note": "reaches sink backticks"
+                }
+              ],
+              "conditions": [],
+              "stored_flow": null,
+              "suppression_reason": null,
+              "engines": [
+                "taint"
+              ]
+            },
+            "runtime": null
+          }
+        ],
+        "runtime": []
+      },
+      "cvss": {
+        "version": "3.0",
+        "vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H/E:U/RC:R",
+        "base_score": 9.8,
+        "temporal_score": 8.6,
+        "rating": "high"
+      },
+      "risk_score": 8.6,
+      "risk_factors": [
+        "CWE-78 baseline: AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+        "E:U, found by code analysis only, not exploited",
+        "RC:R, reasonable evidence from one scanner"
+      ],
+      "rank": 2
+    },
+    {
+      "issue_id": "issue:3215895506e11ce8",
+      "label": "Code only",
+      "cwe": "CWE-798",
+      "cwe_family": "CWE-798",
+      "title": "Hard-coded secret",
+      "severity": "high",
+      "confidence": "high",
+      "reportable": true,
+      "stored": false,
+      "ambiguous": false,
+      "candidates": [],
+      "routes": [
+        {
+          "path": "/account/orders.php",
+          "aliases": [],
+          "selector": null,
+          "methods": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/orders.php",
+          "aliases": [],
+          "selector": null,
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/attachment.php",
+          "aliases": [],
+          "selector": null,
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/cart/checkout.php",
+          "aliases": [],
+          "selector": null,
+          "methods": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/cart/index.php",
+          "aliases": [
+            "/cart/"
+          ],
+          "selector": null,
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/category.php",
+          "aliases": [],
+          "selector": null,
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/contact.php",
+          "aliases": [],
+          "selector": null,
+          "methods": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/export.php",
+          "aliases": [],
+          "selector": null,
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/gallery.php",
+          "aliases": [],
+          "selector": null,
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/index.php",
+          "aliases": [
+            "/"
+          ],
+          "selector": null,
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/login.php",
+          "aliases": [],
+          "selector": null,
+          "methods": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/product.php",
+          "aliases": [],
+          "selector": null,
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/products.php",
+          "aliases": [],
+          "selector": null,
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/profile.php",
+          "aliases": [],
+          "selector": null,
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/register.php",
+          "aliases": [],
+          "selector": null,
+          "methods": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/reset.php",
+          "aliases": [],
+          "selector": null,
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/reviews.php",
+          "aliases": [],
+          "selector": null,
+          "methods": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/search.php",
+          "aliases": [],
+          "selector": null,
+          "methods": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/shop.php",
+          "aliases": [],
+          "selector": null,
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/tools/lookup.php",
+          "aliases": [],
+          "selector": null,
+          "methods": [
+            "GET",
+            "POST"
+          ]
+        }
+      ],
+      "params": [],
+      "sast_ids": [
+        "sast:5c86e198eac9b5bf"
+      ],
+      "dast_ids": [],
+      "evidence": {
+        "code": [
+          {
+            "id": "sast:5c86e198eac9b5bf",
+            "source": "sast",
+            "tool": "cyberforge-sast",
+            "cwe": "CWE-798",
+            "cwe_family": "CWE-798",
+            "title": "Hard-coded secret",
+            "severity": "high",
+            "confidence": "high",
+            "status": "open",
+            "scope": "endpoint",
+            "params": [],
+            "routes": [
+              {
+                "path": "/account/orders.php",
+                "aliases": [],
+                "selector": null,
+                "methods": [
+                  "GET",
+                  "POST"
+                ]
+              },
+              {
+                "path": "/api/orders.php",
+                "aliases": [],
+                "selector": null,
+                "methods": [
+                  "GET"
+                ]
+              },
+              {
+                "path": "/attachment.php",
+                "aliases": [],
+                "selector": null,
+                "methods": [
+                  "GET"
+                ]
+              },
+              {
+                "path": "/cart/checkout.php",
+                "aliases": [],
+                "selector": null,
+                "methods": [
+                  "POST"
+                ]
+              },
+              {
+                "path": "/cart/index.php",
+                "aliases": [
+                  "/cart/"
+                ],
+                "selector": null,
+                "methods": [
+                  "GET"
+                ]
+              },
+              {
+                "path": "/category.php",
+                "aliases": [],
+                "selector": null,
+                "methods": [
+                  "GET"
+                ]
+              },
+              {
+                "path": "/contact.php",
+                "aliases": [],
+                "selector": null,
+                "methods": [
+                  "POST"
+                ]
+              },
+              {
+                "path": "/export.php",
+                "aliases": [],
+                "selector": null,
+                "methods": [
+                  "GET"
+                ]
+              },
+              {
+                "path": "/gallery.php",
+                "aliases": [],
+                "selector": null,
+                "methods": [
+                  "GET"
+                ]
+              },
+              {
+                "path": "/index.php",
+                "aliases": [
+                  "/"
+                ],
+                "selector": null,
+                "methods": [
+                  "GET"
+                ]
+              },
+              {
+                "path": "/login.php",
+                "aliases": [],
+                "selector": null,
+                "methods": [
+                  "POST"
+                ]
+              },
+              {
+                "path": "/product.php",
+                "aliases": [],
+                "selector": null,
+                "methods": [
+                  "GET"
+                ]
+              },
+              {
+                "path": "/products.php",
+                "aliases": [],
+                "selector": null,
+                "methods": [
+                  "GET"
+                ]
+              },
+              {
+                "path": "/profile.php",
+                "aliases": [],
+                "selector": null,
+                "methods": [
+                  "GET"
+                ]
+              },
+              {
+                "path": "/register.php",
+                "aliases": [],
+                "selector": null,
+                "methods": [
+                  "POST"
+                ]
+              },
+              {
+                "path": "/reset.php",
+                "aliases": [],
+                "selector": null,
+                "methods": [
+                  "GET"
+                ]
+              },
+              {
+                "path": "/reviews.php",
+                "aliases": [],
+                "selector": null,
+                "methods": [
+                  "POST"
+                ]
+              },
+              {
+                "path": "/search.php",
+                "aliases": [],
+                "selector": null,
+                "methods": [
+                  "GET",
+                  "POST"
+                ]
+              },
+              {
+                "path": "/shop.php",
+                "aliases": [],
+                "selector": null,
+                "methods": [
+                  "GET"
+                ]
+              },
+              {
+                "path": "/tools/lookup.php",
+                "aliases": [],
+                "selector": null,
+                "methods": [
+                  "GET",
+                  "POST"
+                ]
+              }
+            ],
+            "code": {
+              "file": "app/lib/config.php",
+              "line": 3,
+              "snippet": "define('DB_PASSWORD', 'Sup3rS3cretDb!');",
+              "function": "<top-level>",
+              "sink": "Hard-coded secret in a constant",
+              "trace": [
+                {
+                  "file": "app/lib/config.php",
+                  "line": 3,
+                  "note": "Hard-coded secret in a constant"
+                }
+              ],
+              "conditions": [],
+              "stored_flow": null,
+              "suppression_reason": null,
+              "engines": [
+                "semgrep"
+              ]
+            },
+            "runtime": null
+          }
+        ],
+        "runtime": []
+      },
+      "cvss": {
+        "version": "3.0",
+        "vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H/E:U/RC:R",
+        "base_score": 9.8,
+        "temporal_score": 8.6,
+        "rating": "high"
+      },
+      "risk_score": 8.6,
+      "risk_factors": [
+        "CWE-798 baseline: AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+        "E:U, found by code analysis only, not exploited",
+        "RC:R, reasonable evidence from one scanner"
+      ],
+      "rank": 3
+    },
+    {
+      "issue_id": "issue:e95807be8e994deb",
+      "label": "Code only",
+      "cwe": "CWE-22",
+      "cwe_family": "CWE-22",
+      "title": "Path traversal",
+      "severity": "high",
+      "confidence": "high",
+      "reportable": true,
+      "stored": false,
+      "ambiguous": false,
+      "candidates": [],
+      "routes": [
+        {
+          "path": "/download.php",
+          "aliases": [],
+          "selector": null,
+          "methods": [
+            "GET"
+          ]
+        }
+      ],
+      "params": [
+        {
+          "name": "file",
+          "location": "query"
+        }
+      ],
+      "sast_ids": [
+        "sast:b5bf6f8f27736f22"
+      ],
+      "dast_ids": [],
+      "evidence": {
+        "code": [
+          {
+            "id": "sast:b5bf6f8f27736f22",
+            "source": "sast",
+            "tool": "cyberforge-sast",
+            "cwe": "CWE-22",
+            "cwe_family": "CWE-22",
+            "title": "Path traversal",
+            "severity": "high",
+            "confidence": "high",
+            "status": "open",
+            "scope": "endpoint",
+            "params": [
+              {
+                "name": "file",
+                "location": "query"
+              }
+            ],
+            "routes": [
+              {
+                "path": "/download.php",
+                "aliases": [],
+                "selector": null,
+                "methods": [
+                  "GET"
+                ]
+              }
+            ],
+            "code": {
+              "file": "app/public/download.php",
+              "line": 3,
+              "snippet": "readfile(__DIR__ . '/../files/' . $file);",
+              "function": "<top-level>",
+              "sink": "readfile",
+              "trace": [
+                {
+                  "file": "app/public/download.php",
+                  "line": 2,
+                  "note": "read from query parameter 'file'"
+                },
+                {
+                  "file": "app/public/download.php",
+                  "line": 2,
+                  "note": "assigned to $file"
+                },
+                {
+                  "file": "app/public/download.php",
+                  "line": 3,
+                  "note": "reaches sink readfile"
+                }
+              ],
+              "conditions": [],
+              "stored_flow": null,
+              "suppression_reason": null,
+              "engines": [
+                "taint"
+              ]
+            },
+            "runtime": null
+          }
+        ],
+        "runtime": []
+      },
+      "cvss": {
+        "version": "3.0",
+        "vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N/E:U/RC:R",
+        "base_score": 7.5,
+        "temporal_score": 6.6,
+        "rating": "medium"
+      },
+      "risk_score": 6.6,
+      "risk_factors": [
+        "CWE-22 baseline: AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+        "E:U, found by code analysis only, not exploited",
+        "RC:R, reasonable evidence from one scanner"
+      ],
+      "rank": 4
+    },
+    {
+      "issue_id": "issue:29cc71d852fa9948",
+      "label": "Code only",
+      "cwe": "CWE-79",
+      "cwe_family": "CWE-79",
+      "title": "Cross-site scripting",
+      "severity": "high",
+      "confidence": "medium",
+      "reportable": true,
+      "stored": true,
+      "ambiguous": false,
+      "candidates": [],
+      "routes": [
+        {
+          "path": "/product.php",
+          "aliases": [],
+          "selector": null,
+          "methods": [
+            "GET"
+          ]
+        }
+      ],
+      "params": [
+        {
+          "name": "body",
+          "location": "body"
+        }
+      ],
+      "sast_ids": [
+        "sast:4d81da941af44a0a"
+      ],
+      "dast_ids": [],
+      "evidence": {
+        "code": [
+          {
+            "id": "sast:4d81da941af44a0a",
+            "source": "sast",
+            "tool": "cyberforge-sast",
+            "cwe": "CWE-79",
+            "cwe_family": "CWE-79",
+            "title": "Cross-site scripting",
+            "severity": "high",
+            "confidence": "medium",
+            "status": "open",
+            "scope": "endpoint",
+            "params": [
+              {
+                "name": "body",
+                "location": "body"
+              }
+            ],
+            "routes": [
+              {
+                "path": "/product.php",
+                "aliases": [],
+                "selector": null,
+                "methods": [
+                  "GET"
+                ]
+              }
+            ],
+            "code": {
+              "file": "app/templates/product.php",
+              "line": 3,
+              "snippet": "<blockquote><?= $review['body'] ?> by <?= htmlspecialchars($review['author']) ?></blockquote>",
+              "function": "render",
+              "sink": "echo",
+              "trace": [
+                {
+                  "file": "app/public/reviews.php",
+                  "line": 5,
+                  "note": "read from body parameter 'body'"
+                },
+                {
+                  "file": "app/public/reviews.php",
+                  "line": 5,
+                  "note": "passed to ReviewRepository::add($body)"
+                },
+                {
+                  "file": "app/lib/repositories.php",
+                  "line": 30,
+                  "note": "read back from db:reviews"
+                },
+                {
+                  "file": "app/public/product.php",
+                  "line": 5,
+                  "note": "returned from ReviewRepository::forProduct()"
+                },
+                {
+                  "file": "app/public/product.php",
+                  "line": 5,
+                  "note": "passed to render($vars)"
+                },
+                {
+                  "file": "app/templates/product.php",
+                  "line": 2,
+                  "note": "assigned to $review"
+                },
+                {
+                  "file": "app/templates/product.php",
+                  "line": 3,
+                  "note": "reaches sink echo"
+                }
+              ],
+              "conditions": [],
+              "stored_flow": {
+                "store": "db:reviews",
+                "write_file": "app/lib/repositories.php",
+                "write_line": 24,
+                "write_routes": [
+                  {
+                    "path": "/reviews.php",
+                    "aliases": [],
+                    "selector": null,
+                    "methods": [
+                      "POST"
+                    ]
+                  }
+                ],
+                "read_file": "app/templates/product.php",
+                "read_line": 3
+              },
+              "suppression_reason": null,
+              "engines": [
+                "taint"
+              ]
+            },
+            "runtime": null
+          }
+        ],
+        "runtime": []
+      },
+      "cvss": {
+        "version": "3.0",
+        "vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N/E:U/RC:R",
+        "base_score": 6.1,
+        "temporal_score": 5.4,
+        "rating": "medium"
+      },
+      "risk_score": 5.4,
+      "risk_factors": [
+        "CWE-79 baseline: AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N",
+        "E:U, found by code analysis only, not exploited",
+        "RC:R, reasonable evidence from one scanner"
+      ],
+      "rank": 5
+    },
+    {
+      "issue_id": "issue:3e6db229c58cc9dc",
+      "label": "Code only",
+      "cwe": "CWE-79",
+      "cwe_family": "CWE-79",
+      "title": "Cross-site scripting",
+      "severity": "high",
+      "confidence": "high",
+      "reportable": true,
+      "stored": false,
+      "ambiguous": false,
+      "candidates": [],
+      "routes": [
+        {
+          "path": "/contact.php",
+          "aliases": [],
+          "selector": null,
+          "methods": [
+            "POST"
+          ]
+        }
+      ],
+      "params": [
+        {
+          "name": "name",
+          "location": "body"
+        }
+      ],
+      "sast_ids": [
+        "sast:a6ce58c3827a85b3"
+      ],
+      "dast_ids": [],
+      "evidence": {
+        "code": [
+          {
+            "id": "sast:a6ce58c3827a85b3",
+            "source": "sast",
+            "tool": "cyberforge-sast",
+            "cwe": "CWE-79",
+            "cwe_family": "CWE-79",
+            "title": "Cross-site scripting",
+            "severity": "high",
+            "confidence": "high",
+            "status": "open",
+            "scope": "endpoint",
+            "params": [
+              {
+                "name": "name",
+                "location": "body"
+              }
+            ],
+            "routes": [
+              {
+                "path": "/contact.php",
+                "aliases": [],
+                "selector": null,
+                "methods": [
+                  "POST"
+                ]
+              }
+            ],
+            "code": {
+              "file": "app/public/contact.php",
+              "line": 4,
+              "snippet": "echo \"<form method='post'><input name='name' value='\" . $name . \"'><button>Send</button></form>\";",
+              "function": "<top-level>",
+              "sink": "echo",
+              "trace": [
+                {
+                  "file": "app/public/contact.php",
+                  "line": 3,
+                  "note": "read from body parameter 'name'"
+                },
+                {
+                  "file": "app/public/contact.php",
+                  "line": 3,
+                  "note": "htmlspecialchars()"
+                },
+                {
+                  "file": "app/public/contact.php",
+                  "line": 3,
+                  "note": "assigned to $name"
+                },
+                {
+                  "file": "app/public/contact.php",
+                  "line": 4,
+                  "note": "reaches sink echo"
+                }
+              ],
+              "conditions": [],
+              "stored_flow": null,
+              "suppression_reason": null,
+              "engines": [
+                "taint"
+              ]
+            },
+            "runtime": null
+          }
+        ],
+        "runtime": []
+      },
+      "cvss": {
+        "version": "3.0",
+        "vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N/E:U/RC:R",
+        "base_score": 6.1,
+        "temporal_score": 5.4,
+        "rating": "medium"
+      },
+      "risk_score": 5.4,
+      "risk_factors": [
+        "CWE-79 baseline: AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N",
+        "E:U, found by code analysis only, not exploited",
+        "RC:R, reasonable evidence from one scanner"
+      ],
+      "rank": 6
+    },
+    {
+      "issue_id": "issue:8f9557960da95ff8",
+      "label": "Code only",
+      "cwe": "CWE-328",
+      "cwe_family": "CWE-327",
+      "title": "Weak password hash",
+      "severity": "medium",
+      "confidence": "high",
+      "reportable": true,
+      "stored": false,
+      "ambiguous": false,
+      "candidates": [],
+      "routes": [
+        {
+          "path": "/register.php",
+          "aliases": [],
+          "selector": null,
+          "methods": [
+            "POST"
+          ]
+        }
+      ],
+      "params": [
+        {
+          "name": "password",
+          "location": "body"
+        }
+      ],
+      "sast_ids": [
+        "sast:88d9b5a67c9d2424"
+      ],
+      "dast_ids": [],
+      "evidence": {
+        "code": [
+          {
+            "id": "sast:88d9b5a67c9d2424",
+            "source": "sast",
+            "tool": "cyberforge-sast",
+            "cwe": "CWE-328",
+            "cwe_family": "CWE-327",
+            "title": "Weak password hash",
+            "severity": "medium",
+            "confidence": "high",
+            "status": "open",
+            "scope": "endpoint",
+            "params": [
+              {
+                "name": "password",
+                "location": "body"
+              }
+            ],
+            "routes": [
+              {
+                "path": "/register.php",
+                "aliases": [],
+                "selector": null,
+                "methods": [
+                  "POST"
+                ]
+              }
+            ],
+            "code": {
+              "file": "app/public/register.php",
+              "line": 5,
+              "snippet": "$stmt->execute([$_POST['username'], sha1($_POST['password'])]);",
+              "function": "<top-level>",
+              "sink": "sha1",
+              "trace": [
+                {
+                  "file": "app/public/register.php",
+                  "line": 5,
+                  "note": "read from body parameter 'password'"
+                },
+                {
+                  "file": "app/public/register.php",
+                  "line": 5,
+                  "note": "reaches sink sha1"
+                }
+              ],
+              "conditions": [],
+              "stored_flow": null,
+              "suppression_reason": null,
+              "engines": [
+                "semgrep",
+                "taint"
+              ]
+            },
+            "runtime": null
+          }
+        ],
+        "runtime": []
+      },
+      "cvss": {
+        "version": "3.0",
+        "vector": "CVSS:3.0/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:N/A:N/E:U/RC:R",
+        "base_score": 5.9,
+        "temporal_score": 5.2,
+        "rating": "medium"
+      },
+      "risk_score": 5.2,
+      "risk_factors": [
+        "CWE-327 baseline: AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:N/A:N",
+        "E:U, found by code analysis only, not exploited",
+        "RC:R, reasonable evidence from one scanner"
+      ],
+      "rank": 7
+    },
+    {
+      "issue_id": "issue:7101552051f5a271",
+      "label": "Runtime only",
+      "cwe": "CWE-200",
+      "cwe_family": "CWE-489",
+      "title": "Server/technology version disclosure",
+      "severity": "low",
+      "confidence": "medium",
+      "reportable": true,
+      "stored": false,
+      "ambiguous": false,
+      "candidates": [],
+      "routes": [],
+      "params": [],
+      "sast_ids": [],
+      "dast_ids": [
+        "dast:32572aeed10adb3fab0ed373529d7df90255e5ab"
+      ],
+      "evidence": {
+        "code": [],
+        "runtime": [
+          {
+            "id": "dast:32572aeed10adb3fab0ed373529d7df90255e5ab",
+            "source": "dast",
+            "tool": "cyberforge-dast",
+            "cwe": "CWE-200",
+            "cwe_family": "CWE-489",
+            "title": "Server/technology version disclosure",
+            "severity": "low",
+            "confidence": "medium",
+            "status": "open",
+            "scope": "app",
+            "params": [],
+            "routes": [],
+            "code": null,
+            "runtime": {
+              "method": "GET",
+              "url": "http://127.0.0.1:8088",
+              "payload": "",
+              "technique": "",
+              "verification": "firm",
+              "evidence": {
+                "request": "",
+                "response_excerpt": "",
+                "matched": "Server: Apache/2.4.69 (Debian); X-Powered-By: PHP/8.2.35",
+                "baseline_status": null,
+                "probe_status": null,
+                "affected_urls": [
+                  "http://127.0.0.1:8088"
+                ],
+                "affected_count": 1
+              }
+            }
+          }
+        ]
+      },
+      "cvss": {
+        "version": "3.0",
+        "vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N/E:P/RC:R",
+        "base_score": 5.3,
+        "temporal_score": 4.8,
+        "rating": "medium"
+      },
+      "risk_score": 4.8,
+      "risk_factors": [
+        "CWE-489 baseline: AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+        "E:P, a runtime test showed it but didn't fully exploit it",
+        "RC:R, reasonable evidence from one scanner"
+      ],
+      "rank": 8
+    },
+    {
+      "issue_id": "issue:6f40013275364a38",
+      "label": "Runtime only",
+      "cwe": "CWE-1021",
+      "cwe_family": "CWE-1021",
+      "title": "Missing Content-Security-Policy header",
+      "severity": "medium",
+      "confidence": "medium",
+      "reportable": true,
+      "stored": false,
+      "ambiguous": false,
+      "candidates": [],
+      "routes": [],
+      "params": [],
+      "sast_ids": [],
+      "dast_ids": [
+        "dast:bd48ff9b3e99f0399534040bf474057c4518f965"
+      ],
+      "evidence": {
+        "code": [],
+        "runtime": [
+          {
+            "id": "dast:bd48ff9b3e99f0399534040bf474057c4518f965",
+            "source": "dast",
+            "tool": "cyberforge-dast",
+            "cwe": "CWE-1021",
+            "cwe_family": "CWE-1021",
+            "title": "Missing Content-Security-Policy header",
+            "severity": "medium",
+            "confidence": "medium",
+            "status": "open",
+            "scope": "app",
+            "params": [],
+            "routes": [],
+            "code": null,
+            "runtime": {
+              "method": "GET",
+              "url": "http://127.0.0.1:8088",
+              "payload": "",
+              "technique": "",
+              "verification": "firm",
+              "evidence": {
+                "request": "",
+                "response_excerpt": "",
+                "matched": "",
+                "baseline_status": null,
+                "probe_status": null,
+                "affected_urls": [
+                  "http://127.0.0.1:8088",
+                  "http://127.0.0.1:8088/page.php?name=about",
+                  "http://127.0.0.1:8088/page.php?name=shipping",
+                  "http://127.0.0.1:8088/product.php?id=1",
+                  "http://127.0.0.1:8088/product.php?id=2",
+                  "http://127.0.0.1:8088/product.php?id=3",
+                  "http://127.0.0.1:8088/products.php",
+                  "http://127.0.0.1:8088/search.php?q=anvil"
+                ],
+                "affected_count": 8
+              }
+            }
+          }
+        ]
+      },
+      "cvss": {
+        "version": "3.0",
+        "vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:R/S:U/C:N/I:L/A:N/E:P/RC:R",
+        "base_score": 4.3,
+        "temporal_score": 3.9,
+        "rating": "low"
+      },
+      "risk_score": 3.9,
+      "risk_factors": [
+        "CWE-1021 baseline: AV:N/AC:L/PR:N/UI:R/S:U/C:N/I:L/A:N",
+        "E:P, a runtime test showed it but didn't fully exploit it",
+        "RC:R, reasonable evidence from one scanner"
+      ],
+      "rank": 9
+    }
+  ],
+  "links": [
+    {
+      "link_id": "link:f6c1ea9c06bcca28",
+      "issue_id": "issue:e3faf0365c652617",
+      "sast_ids": [
+        "sast:9ef45cf2c37f2881"
+      ],
+      "dast_ids": [
+        "dast:ff127f8e1c213fe4283b5634b34b11bae6066bd7"
+      ],
+      "strength": "strong",
+      "match_basis": {
+        "cwe_family": "CWE-89",
+        "runtime_route": "/search.php",
+        "kind": "exact",
+        "code_route": "/search.php",
+        "selector": null,
+        "parameter": "q",
+        "location": "query"
+      }
+    }
+  ],
+  "conflicts": [],
+  "suppressed": [
+    {
+      "sast_id": "sast:2ea31ccff3f07030",
+      "cwe": "CWE-89",
+      "file": "app/public/category.php",
+      "line": 4,
+      "reason": "numeric cast or validation"
+    },
+    {
+      "sast_id": "sast:5efc3e63dbc979d2",
+      "cwe": "CWE-89",
+      "file": "app/lib/legacy.php",
+      "line": 3,
+      "reason": "no route can reach this code"
+    },
+    {
+      "sast_id": "sast:f9f9e7a14895235a",
+      "cwe": "CWE-78",
+      "file": "app/public/tools/dns.php",
+      "line": 3,
+      "reason": "escapeshellarg"
+    }
+  ],
+  "diagnostics": [],
+  "stats": {
+    "issues": 9,
+    "reportable": 9,
+    "confirmed": 1,
+    "code_only": 6,
+    "runtime_only": 2,
+    "links": 1,
+    "ambiguous": 0,
+    "conflicts": 0,
+    "suppressed": 3
+  }
+}

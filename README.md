@@ -8,6 +8,19 @@ We are winning this gang!
 | [dast-engine/](dast-engine/) | Dynamic scanner: tests the running app | [README](dast-engine/README.md) |
 | [common/](common/) | The one finding format both scanners write, for the correlator to read | [FORMAT.md](common/FORMAT.md) |
 | [correlator/](correlator/) | Joins both reports into one issue per bug: Confirmed, Code only or Runtime only | [README](correlator/README.md) |
+| [web/](web/) | Local analyst workspace: findings, source/runtime evidence, and scan coverage | [README](web/README.md) |
+
+## Analyst interface
+
+The [web workspace](web/README.md) opens an existing `issues.json` in a minimal two-pane interface. It supports search and filters, evidence and code traces, coverage, conflicts, and exports. Scanning continues through the existing CLIs. After installing its dependencies and building the frontend:
+
+```sh
+web/.venv/bin/python -m web.server --report out/issues.json
+# Or view the clearly labelled, selected benchmark example:
+web/.venv/bin/python -m web.server --example
+```
+
+Open **http://127.0.0.1:8000**. Reports stay local.
 
 ## Running everything on the benchmark shop
 
