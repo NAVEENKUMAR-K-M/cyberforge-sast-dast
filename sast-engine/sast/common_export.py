@@ -22,17 +22,24 @@ def to_common(result) -> dict:
     }
 
 
-def _finding(f: dict, routes_by_id: dict) -> dict:
+def _route(ref: dict, routes_by_id: dict) -> dict:
     # A finding's route refs carry no aliases; the full route does ("/shop/" for "/shop/index.php").
-    routes = [
-        {
-            "path": ref["path"],
-            "aliases": list(routes_by_id.get(ref["id"], {}).get("aliases", [])),
-            "selector": ref["selector"],
-            "methods": list(ref["methods"]),
-        }
-        for ref in f["routes"]
-    ]
+    return {
+        "path": ref["path"],
+        "aliases": list(routes_by_id.get(ref["id"], {}).get("aliases", [])),
+        "selector": ref["selector"],
+        "methods": list(ref["methods"]),
+    }
+
+
+def _stored_flow(flow: dict | None, routes_by_id: dict) -> dict | None:
+    if not flow:
+        return flow
+    return {**flow, "write_routes": [_route(ref, routes_by_id) for ref in flow["write_routes"]]}
+
+
+def _finding(f: dict, routes_by_id: dict) -> dict:
+    routes = [_route(ref, routes_by_id) for ref in f["routes"]]
     return {
         "id": f"sast:{f['fingerprint']}",
         "source": "sast",
@@ -54,7 +61,7 @@ def _finding(f: dict, routes_by_id: dict) -> dict:
             "sink": f["sink"],
             "trace": f["trace"],
             "conditions": f["conditions"],
-            "stored_flow": f["stored_flow"],
+            "stored_flow": _stored_flow(f["stored_flow"], routes_by_id),
             "suppression_reason": f["suppression_reason"],
             "engines": f["engines"],
         },

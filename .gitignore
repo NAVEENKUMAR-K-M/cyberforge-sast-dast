@@ -10,6 +10,9 @@ __pycache__/
 .venv/
 venv/
 
+# Correlator output (python -m correlator.cli --out out/issues.json)
+out/
+
 # OS / editor noise
 .DS_Store
 Thumbs.db

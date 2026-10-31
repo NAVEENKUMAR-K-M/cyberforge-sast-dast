@@ -82,7 +82,7 @@ class PathTraversalProbe(Probe):
                         severity=Severity.HIGH,
                         confidence=Confidence.CONFIRMED,
                         method=point.method,
-                        url=url,
+                        url=point.url,  # the tested URL, keeping a selector like ?action=view
                         route_template=point.route_template,
                         param=point.param,
                         param_location=point.param_location.value if hasattr(point.param_location, "value") else point.param_location,

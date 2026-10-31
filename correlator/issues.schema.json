@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CyberForge correlated issues",
+  "description": "One issue per real bug, labelled by what proved it. The member findings are copied in full under evidence, in the common finding format.",
+  "type": "object",
+  "required": ["schema_version", "inputs", "base_path", "issues", "links", "conflicts", "suppressed", "diagnostics", "stats"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "inputs": {
+      "type": "object",
+      "required": ["sast", "dast"],
+      "properties": {
+        "sast": {"$ref": "#/$defs/input"},
+        "dast": {"$ref": "#/$defs/input"}
+      }
+    },
+    "base_path": {"type": "string"},
+    "issues": {"type": "array", "items": {"$ref": "#/$defs/issue"}},
+    "links": {"type": "array", "items": {"$ref": "#/$defs/link"}},
+    "conflicts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["dast_ids", "sast_ids", "reason"],
+        "additionalProperties": false,
+        "properties": {
+          "dast_ids": {"$ref": "#/$defs/ids"},
+          "sast_ids": {"$ref": "#/$defs/ids"},
+          "reason": {"type": "string"}
+        }
+      }
+    },
+    "suppressed": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["sast_id", "cwe", "file", "line", "reason"],
+        "additionalProperties": false,
+        "properties": {
+          "sast_id": {"type": "string"},
+          "cwe": {"type": "string"},
+          "file": {"type": "string"},
+          "line": {"type": "integer"},
+          "reason": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "diagnostics": {"type": "array", "items": {"type": "string"}},
+    "stats": {"type": "object"}
+  },
+  "$defs": {
+    "ids": {"type": "array", "items": {"type": "string"}},
+    "input": {
+      "type": "object",
+      "required": ["path", "target"],
+      "properties": {"path": {"type": "string"}, "target": {"type": "string"}}
+    },
+    "issue": {
+      "type": "object",
+      "required": ["issue_id", "label", "cwe", "cwe_family", "title", "severity", "confidence", "reportable", "stored",
+                   "ambiguous", "candidates", "routes", "params", "sast_ids", "dast_ids", "evidence"],
+      "additionalProperties": false,
+      "properties": {
+        "issue_id": {"type": "string", "pattern": "^issue:[0-9a-f]+$"},
+        "label": {"enum": ["Confirmed", "Code only", "Runtime only"]},
+        "cwe": {"type": "string", "pattern": "^CWE-[0-9]+$"},
+        "cwe_family": {"type": "string", "pattern": "^CWE-[0-9]+$"},
+        "title": {"type": "string"},
+        "severity": {"enum": ["critical", "high", "medium", "low", "info"]},
+        "confidence": {"enum": ["high", "medium", "low"]},
+        "reportable": {"type": "boolean"},
+        "stored": {"type": "boolean"},
+        "ambiguous": {"type": "boolean"},
+        "candidates": {"$ref": "#/$defs/ids"},
+        "routes": {"type": "array", "items": {"type": "object"}},
+        "params": {"type": "array", "items": {"type": "object"}},
+        "sast_ids": {"$ref": "#/$defs/ids"},
+        "dast_ids": {"$ref": "#/$defs/ids"},
+        "evidence": {
+          "type": "object",
+          "required": ["code", "runtime"],
+          "properties": {
+            "code": {"type": "array", "items": {"type": "object"}},
+            "runtime": {"type": "array", "items": {"type": "object"}}
+          }
+        }
+      },
+      "allOf": [
+        {"if": {"properties": {"label": {"const": "Confirmed"}}},
+         "then": {"properties": {"sast_ids": {"minItems": 1}, "dast_ids": {"minItems": 1}}}},
+        {"if": {"properties": {"label": {"const": "Code only"}}},
+         "then": {"properties": {"sast_ids": {"minItems": 1}, "dast_ids": {"maxItems": 0}}}},
+        {"if": {"properties": {"label": {"const": "Runtime only"}}},
+         "then": {"properties": {"sast_ids": {"maxItems": 0}, "dast_ids": {"minItems": 1}}}}
+      ]
+    },
+    "link": {
+      "type": "object",
+      "required": ["link_id", "issue_id", "sast_ids", "dast_ids", "strength", "match_basis"],
+      "additionalProperties": false,
+      "properties": {
+        "link_id": {"type": "string", "pattern": "^link:[0-9a-f]+$"},
+        "issue_id": {"type": "string"},
+        "sast_ids": {"$ref": "#/$defs/ids"},
+        "dast_ids": {"$ref": "#/$defs/ids"},
+        "strength": {"const": "strong"},
+        "match_basis": {
+          "type": "object",
+          "required": ["cwe_family", "runtime_route", "kind", "code_route", "selector", "parameter", "location"],
+          "properties": {
+            "kind": {"enum": ["exact", "alias", "template", "stored-write"]}
+          }
+        }
+      }
+    }
+  }
+}

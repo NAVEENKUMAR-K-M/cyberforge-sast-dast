@@ -52,3 +52,21 @@ def test_code_fields_move_under_code_and_runtime_is_empty(scan):
     f = scan["common"]["findings"][0]
     assert f["source"] == "sast" and f["runtime"] is None
     assert {"file", "line", "snippet", "function", "sink", "trace"} <= set(f["code"])
+
+
+def test_stored_flow_write_routes_carry_aliases():
+    """A correlator matches a runtime finding on the write route too, including by alias."""
+    from sast.common_export import to_common
+    from sast.core.model import ScanResult
+    ref = {"id": "w", "path": "/notes/index.php", "selector": None, "methods": ["POST"]}
+    finding = {
+        "fingerprint": "ab12", "cwe": "CWE-79", "cwe_family": "CWE-79", "title": "Cross-site scripting", "severity": "high",
+        "confidence": "medium", "status": "open", "source_params": [{"name": "body", "location": "body"}], "routes": [],
+        "file": "show.php", "line": 3, "snippet": "", "function": "<top-level>", "sink": "echo", "trace": [], "conditions": [],
+        "suppression_reason": None, "engines": ["taint"],
+        "stored_flow": {"store": "db:notes", "write_file": "add.php", "write_line": 2, "write_routes": [ref],
+                        "read_file": "show.php", "read_line": 3},
+    }
+    result = ScanResult("php", "/src", "", [{"id": "w", "aliases": ["/notes/"]}], [finding])
+    flow = to_common(result)["findings"][0]["code"]["stored_flow"]
+    assert flow["write_routes"] == [{"path": "/notes/index.php", "aliases": ["/notes/"], "selector": None, "methods": ["POST"]}]

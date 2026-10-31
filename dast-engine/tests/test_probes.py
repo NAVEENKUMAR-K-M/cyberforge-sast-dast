@@ -85,6 +85,8 @@ async def test_xss_probe_detects_vulnerable_route(vuln_app_url):
         await rm.aclose()
     assert len(findings) == 1
     assert findings[0].cwe == "CWE-79"
+    # The tested URL, query included, so a correlator can see which page was tested.
+    assert findings[0].url == url
 
 
 @pytest.mark.asyncio
@@ -220,6 +222,7 @@ async def test_path_traversal_probe_detects_vulnerable_route(vuln_app_url):
         await rm.aclose()
     assert len(findings) == 1
     assert findings[0].cwe == "CWE-22"
+    assert findings[0].url == url
 
 
 @pytest.mark.asyncio
