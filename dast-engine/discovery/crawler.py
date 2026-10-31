@@ -1,0 +1,133 @@
+"""Lightweight crawler: follows in-scope links and forms, collects URLs with
+query params, form actions/fields, and JS-embedded URLs. No execution engine
+(Playwright is reserved for optional confirmation elsewhere) — this is a
+fast, static HTML + regex crawl, which is enough for route discovery.
+"""
+from __future__ import annotations
+
+import logging
+import re
+from dataclasses import dataclass, field
+from urllib.parse import urljoin
+
+from bs4 import BeautifulSoup
+
+from core.request_manager import RequestManager
+from core.scope_guard import ScopeGuard
+
+logger = logging.getLogger("dast.crawler")
+
+JS_URL_RE = re.compile(r"""["'](/[A-Za-z0-9_\-/.]+?)["']""")
+
+
+@dataclass
+class CrawledForm:
+    method: str
+    action: str
+    fields: dict[str, str] = field(default_factory=dict)  # name -> default value
+    field_types: dict[str, str] = field(default_factory=dict)  # name -> input type
+
+
+@dataclass
+class CrawlResult:
+    urls: set[str] = field(default_factory=set)  # GET URLs with query params preserved
+    forms: list[CrawledForm] = field(default_factory=list)
+
+
+async def _fetch_robots_sitemap(rm: RequestManager, base_url: str, seen: set[str]) -> None:
+    for path in ("/robots.txt", "/sitemap.xml"):
+        url = urljoin(base_url, path)
+        resp = await rm.get(url)
+        if resp is None or resp.status_code != 200:
+            continue
+        for match in re.finditer(r"https?://[^\s\"'<>]+", resp.text):
+            seen.add(match.group(0))
+        for match in re.finditer(r"(?im)^Disallow:\s*(\S+)", resp.text):
+            seen.add(urljoin(base_url, match.group(1)))
+
+
+async def _fetch_api_specs(rm: RequestManager, base_url: str) -> list[str]:
+    specs = []
+    for path in ("/openapi.json", "/swagger.json", "/v3/api-docs", "/api-docs"):
+        url = urljoin(base_url, path)
+        resp = await rm.get(url)
+        if resp is not None and resp.status_code == 200 and "json" in resp.headers.get("content-type", ""):
+            specs.append(url)
+    return specs
+
+
+def _parse_forms(html: str, page_url: str) -> list[CrawledForm]:
+    soup = BeautifulSoup(html, "lxml")
+    forms = []
+    for f in soup.find_all("form"):
+        method = (f.get("method") or "GET").upper()
+        action = urljoin(page_url, f.get("action") or page_url)
+        fields: dict[str, str] = {}
+        field_types: dict[str, str] = {}
+        for inp in f.find_all(["input", "textarea", "select"]):
+            name = inp.get("name")
+            if not name:
+                continue
+            itype = (inp.get("type") or "text").lower() if inp.name == "input" else "text"
+            value = inp.get("value", "") if inp.name != "select" else ""
+            fields[name] = value
+            field_types[name] = itype
+        forms.append(CrawledForm(method=method, action=action, fields=fields, field_types=field_types))
+    return forms
+
+
+async def crawl(
+    rm: RequestManager,
+    scope_guard: ScopeGuard,
+    seed_urls: list[str],
+    max_pages: int = 200,
+) -> CrawlResult:
+    result = CrawlResult()
+    visited: set[str] = set()
+    queue: list[str] = list(seed_urls)
+
+    base = seed_urls[0] if seed_urls else ""
+    await _fetch_robots_sitemap(rm, base, result.urls)
+    api_specs = await _fetch_api_specs(rm, base)
+    result.urls.update(api_specs)
+
+    while queue and len(visited) < max_pages:
+        if rm.budget.expired():
+            logger.info("Crawler stopping: deadline reached")
+            break
+        url = queue.pop(0)
+        if url in visited:
+            continue
+        if not scope_guard.is_in_scope(url):
+            continue
+        visited.add(url)
+
+        resp = await rm.get(url)
+        if resp is None:
+            continue
+        # Record the URL even on an error status: a 500 with a stack trace
+        # or a 403 leaking a path is exactly what the passive scanner needs
+        # to see. Only link/form extraction requires a successful HTML body.
+        result.urls.add(url)
+        if resp.status_code >= 400:
+            continue
+
+        content_type = resp.headers.get("content-type", "")
+        if "html" not in content_type:
+            continue
+
+        html = resp.text
+        result.forms.extend(_parse_forms(html, url))
+
+        soup = BeautifulSoup(html, "lxml")
+        for a in soup.find_all("a", href=True):
+            link = urljoin(url, a["href"])
+            if scope_guard.is_in_scope(link) and link not in visited:
+                queue.append(link)
+
+        for match in JS_URL_RE.finditer(html):
+            candidate = urljoin(url, match.group(1))
+            if scope_guard.is_in_scope(candidate) and candidate not in visited:
+                queue.append(candidate)
+
+    return result

@@ -1,0 +1,20 @@
+# Dev-only stack: DVWA + ZAP daemon, for local iteration against the
+# plan's milestone target before the organisers' app is available.
+#
+#   docker compose -f docker-compose.dev.yml up -d
+#   # open http://localhost:8080/setup.php once by hand to create the DB
+#   python main.py scan --target http://localhost:8080 --config dvwa.yaml
+
+services:
+  dvwa:
+    image: ghcr.io/digininja/dvwa:latest
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
+  zap:
+    image: zaproxy/zap-stable
+    command: zap.sh -daemon -host 0.0.0.0 -port 8090 -config api.disablekey=true
+    ports:
+      - "8090:8090"
+    restart: unless-stopped

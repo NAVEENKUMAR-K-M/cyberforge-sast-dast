@@ -1,0 +1,50 @@
+# DVWA dev-target config (security level set in the DVWA UI / cookie after login).
+# Start DVWA first: docker run -d -p 8080:80 ghcr.io/digininja/dvwa:latest
+# Then open http://localhost:8080/setup.php once by hand to create the DB.
+
+target: "http://localhost:8080"
+allowlist:
+  - "localhost"
+  - "127.0.0.1"
+
+deadline_seconds: 150
+report_reserve_seconds: 15
+start_rps: 25
+floor_rps: 5
+verify_tls: false
+max_pages: 200
+
+active_backend: zap
+zap_api_url: "http://localhost:8090"
+
+route_map_path: null
+hints_path: null
+output_path: "output/dvwa_results.json"
+
+seed_urls:
+  - "http://localhost:8080/vulnerabilities/sqli/"
+  - "http://localhost:8080/vulnerabilities/sqli_blind/"
+  - "http://localhost:8080/vulnerabilities/xss_r/"
+  - "http://localhost:8080/vulnerabilities/xss_s/"
+  - "http://localhost:8080/vulnerabilities/xss_d/"
+  - "http://localhost:8080/vulnerabilities/exec/"
+  - "http://localhost:8080/vulnerabilities/fi/"
+  - "http://localhost:8080/vulnerabilities/open_redirect/"
+
+auth:
+  enabled: true
+  login_url: "http://localhost:8080/login.php"
+  username_field: "username"
+  password_field: "password"
+  username: "admin"
+  password: "password"
+  extra_fields:
+    Login: "Login"
+  success_indicator: "!Login"   # "Login" string must be ABSENT after success
+
+denylist:
+  - "logout.php"
+  - "setup.php"
+  - "security.php"   # avoid flipping the security level mid-scan
+  - "csrf"
+  - "captcha"

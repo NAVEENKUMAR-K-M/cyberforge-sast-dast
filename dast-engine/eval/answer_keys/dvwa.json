@@ -1,0 +1,22 @@
+{
+  "target": "DVWA (security=low)",
+  "expected": [
+    {"cwe": "CWE-89", "method": "GET", "route_template": "/vulnerabilities/sqli/", "param": "id"},
+    {"cwe": "CWE-89", "method": "GET", "route_template": "/vulnerabilities/sqli_blind/", "param": "id"},
+    {"cwe": "CWE-79", "method": "GET", "route_template": "/vulnerabilities/xss_r/", "param": "name"},
+    {"cwe": "CWE-79", "method": "POST", "route_template": "/vulnerabilities/xss_s/", "param": "txtName"},
+    {"cwe": "CWE-79", "method": "POST", "route_template": "/vulnerabilities/xss_s/", "param": "mtxMessage"},
+    {"cwe": "CWE-78", "method": "POST", "route_template": "/vulnerabilities/exec/", "param": "ip"},
+    {"cwe": "CWE-22", "method": "GET", "route_template": "/vulnerabilities/fi/", "param": "page"},
+    {"cwe": "CWE-601", "method": "GET", "route_template": "/vulnerabilities/open_redirect/", "param": "url"},
+
+    {"cwe": "CWE-1021", "method": "GET", "route_template": "/", "param": null},
+    {"cwe": "CWE-1004", "method": "GET", "route_template": "/", "param": null},
+    {"cwe": "CWE-200", "method": "GET", "route_template": "/", "param": null}
+  ],
+  "safe_decoys": [
+    {"route_template": "/vulnerabilities/sqli/", "param": "Submit", "cwe": "CWE-89"},
+    {"route_template": "/instructions.php", "param": null, "cwe": "CWE-89"}
+  ],
+  "notes": "security.php is denylisted during the scan to avoid flipping the level mid-run. Re-run this same scan at security=impossible to confirm zero injection findings (only passive/app-scope findings should remain)."
+}

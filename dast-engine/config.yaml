@@ -1,0 +1,36 @@
+# Generic default config. Copy/override per target (see dvwa.yaml).
+
+target: "http://localhost:8080"
+allowlist:
+  - "localhost"
+  - "127.0.0.1"
+
+deadline_seconds: 150
+report_reserve_seconds: 15
+start_rps: 25
+floor_rps: 5
+verify_tls: false
+max_pages: 200
+
+active_backend: zap   # zap | nuclei | none
+zap_api_url: "http://localhost:8090"
+
+route_map_path: null   # optional, from SAST: route_map.json
+hints_path: null       # optional, from SAST: hints.json
+output_path: "output/dast_results.json"
+
+auth:
+  enabled: false
+  login_url: ""
+  username_field: "username"
+  password_field: "password"
+  username: ""
+  password: ""
+  extra_fields: {}
+  success_indicator: null
+
+denylist:
+  - "logout"
+  - "setup"
+  - "reset"
+  - "delete"
