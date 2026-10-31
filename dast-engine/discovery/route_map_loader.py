@@ -38,24 +38,49 @@ def _methods_of(r: dict) -> list[str]:
     return [(r.get("method") or "GET").upper()]
 
 
-def _normalize_param(p: dict | str, route_path: str) -> list[dict]:
+def _normalize_param(p: dict | str, method: str, methods: list[str], route_path: str) -> list[dict]:
+    """Where to test one parameter under one method. A body only goes with a
+    method that has one, and a route with several methods tests each place once,
+    so a scan doesn't spend its budget on the same input over and over."""
     if isinstance(p, str):
-        return [{"name": p, "location": "query", "type": None}]
+        p = {"name": p, "location": "query"}
     name, loc, ptype = p.get("name"), p.get("location", "query"), p.get("type")
     if not name:
         return []
-    if loc in _DIRECT_LOCATIONS:
-        return [{"name": name, "location": loc, "type": ptype}]
-    if loc == "any":
-        # $_REQUEST: SAST can't tell if an attacker would use the query
-        # string or the body, so test both rather than guess one and
-        # silently miss the other.
-        return [{"name": name, "location": "query", "type": ptype}, {"name": name, "location": "body", "type": ptype}]
     if loc in _SKIP_LOCATIONS:
         logger.info("route_map: skipping %s param %r on %s (not a fuzzable request value)", loc, name, route_path)
         return []
-    # "unknown" or anything unrecognised: best effort, still worth trying.
-    return [{"name": name, "location": "query", "type": ptype}]
+    if loc == "any":
+        # $_REQUEST reads either place, so each method tests its natural one.
+        return [{"name": name, "location": "query" if method == "GET" else "body", "type": ptype}]
+    if loc not in _DIRECT_LOCATIONS:
+        loc = "query"  # "unknown" or anything unrecognised: best effort, still worth trying.
+    if len(methods) > 1:
+        if loc == "query" and method != "GET":
+            return []
+        if loc in ("body", "json") and method == "GET":
+            return []
+        if loc in ("path", "header", "cookie") and method != methods[0]:
+            return []
+    return [{"name": name, "location": loc, "type": ptype}]
+
+
+def _form_fields(route: dict, method: str, route_path: str) -> list[dict]:
+    """Fields of the page's own forms that submit to this route, with their real
+    defaults. Browsers send every field of a form, so a request should too. Made-up
+    values won't do: some pages reject a request when two exclusive fields are both set."""
+    fields = []
+    for form in route.get("form_fields") or []:
+        if not isinstance(form, dict) or form.get("method", "GET").upper() != method:
+            continue
+        action = (form.get("action") or "").split("?")[0]
+        if action not in ("", "#") and not route_path.endswith(action.lstrip("./")):
+            continue
+        for field_info in form.get("fields", []):
+            if field_info.get("name") and field_info.get("type") != "file":
+                location = "body" if method != "GET" else "query"
+                fields.append({"name": field_info["name"], "value": field_info.get("value", ""), "location": location})
+    return fields
 
 
 def load_route_map(path: str | Path) -> list[dict]:
@@ -75,28 +100,35 @@ def load_route_map(path: str | Path) -> list[dict]:
         route_path = r.get("path") or r.get("route") or r.get("route_template")
         if not route_path:
             continue
-        params = [n for p in r.get("params", []) for n in _normalize_param(p, route_path)]
-        # Required params (e.g. DVWA's "Submit" button): without these the
-        # request never reaches the vulnerable code at all. A `value` means
-        # an exact match is checked; otherwise any truthy value will do.
-        # Carried as a flat dict so every point on this route sends them
-        # alongside whichever single param is actually being fuzzed -- the
-        # same fix already applied to crawled GET forms (build_request()),
-        # now applied to route-map-sourced points too.
-        required = {
-            p.get("name"): p.get("value") or "1"
-            for p in r.get("required_params", [])
-            if isinstance(p, dict) and p.get("name")
-        }
-        for method in _methods_of(r):
-            normalized.append({"method": method, "path": route_path, "params": params, "required_params": required})
+        methods = _methods_of(r)
+        for method in methods:
+            params = [n for p in r.get("params", []) for n in _normalize_param(p, method, methods, route_path)]
+            # Required params (e.g. a "Submit" button): without these the request
+            # never reaches the code at all. A `value` means the code checks for
+            # that exact value; otherwise any truthy value will do.
+            required = [
+                {"name": p["name"], "value": p.get("value") or "1", "location": p.get("location")}
+                for p in r.get("required_params", [])
+                if isinstance(p, dict) and p.get("name")
+            ]
+            normalized.append({
+                "method": method, "path": route_path, "params": params,
+                # Required values go last, so they win over a form's default.
+                "fields": _form_fields(r, method, route_path) + required,
+                "selector": r.get("selector"),
+            })
     return normalized
+
+
+def hint_key(method: str, route: str, param: str | None, selector: str | None) -> tuple:
+    """A trailing slash makes no difference: `/x/` from a crawl is `/x/` from SAST."""
+    return (method.upper(), route.rstrip("/") or "/", param, selector)
 
 
 def load_sast_hints(path: str | Path | None) -> dict:
     """Optional per-route hints from SAST (e.g. a sink seen for a route+param).
 
-    Shape: {"hints": [{"route": "/x/{id}", "method": "GET", "param": "id", "cwe": "CWE-89"}]}
+    Shape: {"hints": [{"route": "/x/{id}", "method": "GET", "selector": null, "param": "id", "cwe": "CWE-89"}]}
     Used only to prioritise tier-2 probing — never to skip a test entirely.
     """
     if not path:
@@ -111,6 +143,6 @@ def load_sast_hints(path: str | Path | None) -> dict:
         return {}
     index: dict[tuple, list[str]] = {}
     for h in data.get("hints", []):
-        key = (h.get("method", "GET").upper(), h.get("route"), h.get("param"))
+        key = hint_key(h.get("method", "GET"), h.get("route") or "", h.get("param"), h.get("selector"))
         index.setdefault(key, []).append(h.get("cwe"))
     return index

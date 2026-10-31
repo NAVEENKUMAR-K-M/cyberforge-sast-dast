@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass, field
 
 CONFIDENCE = ("high", "medium", "low")
-LOCATIONS = ("query", "body", "any", "cookie", "header", "path", "file", "session", "unknown")
+LOCATIONS = ("query", "body", "json", "any", "cookie", "header", "path", "file", "session", "unknown")
 
 
 @dataclass

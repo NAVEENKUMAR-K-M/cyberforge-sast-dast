@@ -194,6 +194,19 @@ async def test_sqli_probe_ignores_exact_error_phrase_present_regardless_of_input
     assert findings == [], "exact error phrase present on a clean request too must not be flagged"
 
 
+@pytest.mark.asyncio
+async def test_xss_probe_ignores_reflection_in_a_non_html_response(vuln_app_url):
+    """Regression test: confirmed on the benchmark shop, a page served as
+    text/plain was reported as XSS, though a browser never runs that as markup."""
+    rm = make_rm(vuln_app_url)
+    try:
+        point = make_point(f"{vuln_app_url}/xss_plain_text?q=a", "q")
+        findings = await XssProbe().detect(rm, point, baseline=None)
+    finally:
+        await rm.aclose()
+    assert findings == []
+
+
 # --- Path traversal ----------------------------------------------------------
 
 @pytest.mark.asyncio

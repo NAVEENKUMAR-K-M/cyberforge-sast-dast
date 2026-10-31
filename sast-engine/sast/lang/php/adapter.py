@@ -6,13 +6,14 @@ import time
 
 from sast.core import cwe as cwe_mod
 from sast.core.language import ScanOptions
+from sast.config_secrets import scan_config_files
 from sast.core.model import CONFIDENCE, Finding, Param, ScanResult, fingerprint
-from sast.semgrep_runner import looks_like_real_secret, run_semgrep
+from sast.semgrep_runner import fallback_is_secret, looks_like_real_secret, run_semgrep
 
 from .frameworks import router
 from .interp import Interpreter
 from .project import DEFAULT_EXCLUDES, Project
-from .routes import RouteMap, find_entries
+from .routes import RouteMap, apply_rewrites, find_entries
 from .values import Taint, Val
 
 MAX_PASSES = 3
@@ -50,7 +51,9 @@ class PhpAdapter:
                 handler.run(interp)
 
         self._run_unreached(project, interp)
-        findings = self._merge(project, interp.hits)
+        rewrites = apply_rewrites(project, routes)
+        findings = self._merge(project, interp)
+        self._add_config_findings(source_root, project, findings, options)
         semgrep_error = None
         if options.use_semgrep:
             semgrep_error = self._add_pattern_findings(source_root, project, interp, findings, options)
@@ -60,6 +63,7 @@ class PhpAdapter:
             "files_skipped_too_large": project.skipped,
             "entry_points": len(entries),
             "routes": len(routes.routes),
+            "rewrite_rules_applied": rewrites,
             "passes": passes,
             "observations": len(interp.hits),
             "budget_exhausted_entries": interp.budget_hits,
@@ -78,7 +82,7 @@ class PhpAdapter:
             for fd in defs:
                 if fd.id in interp.executed_funcs:
                     continue
-                if fd.name.lower() in project.callbacks:
+                if fd.cls is None and fd.name.lower() in project.callbacks:
                     self._run_callback(fd, project, interp)
                 else:
                     interp.run_function(fd, [])
@@ -95,9 +99,9 @@ class PhpAdapter:
         route = interp.routes.for_file(fd.sf.rel)
         interp.run_function(fd, [route] if route is not None else [], seed)
 
-    def _merge(self, project, hits) -> dict:
+    def _merge(self, project, interp) -> dict:
         findings: dict[str, Finding] = {}
-        for hit in hits:
+        for hit in interp.hits:
             fam = cwe_mod.family(hit.cwe)
             fp = fingerprint(fam, hit.file, hit.func, hit.expr)
             found = findings.get(fp)
@@ -144,12 +148,27 @@ class PhpAdapter:
                 }
         for found in findings.values():
             if found.status == "open" and not found.routes:
-                if _name_used_elsewhere(found.function, project.all_text_blobs):
-                    found.confidence = "low"
-                else:
+                if _known_unreachable(found, project, interp):
                     found.status = "suppressed"
                     found.suppression_reason = "no route can reach this code"
+                else:
+                    found.confidence = "low"
+                    found.conditions.append("no route found; this code may run in a way the analysis can't see")
         return findings
+
+    def _add_config_findings(self, source_root, project, findings, options):
+        """Config files are outside the PHP analysis. Their values are left out of the snippet, because
+        a real .env holds live secrets and this output gets shared."""
+        excludes = set(DEFAULT_EXCLUDES) | set(options.exclude)
+        for rel, line, name in scan_config_files(source_root, excludes):
+            fp = fingerprint(798, rel, "<config>", name)
+            if fp in findings:
+                continue
+            found = Finding(fp, 798, 798, cwe_mod.TITLES[798], cwe_mod.SEVERITY[798], "medium", rel, line,
+                            f"{name} = ****", "<config>", "configuration file")
+            found.engines.add("config")
+            found.trace = [{"file": rel, "line": line, "note": f"{name} is set to a literal value"}]
+            findings[fp] = found
 
     def _add_pattern_findings(self, source_root, project, interp, findings, options):
         excludes = sorted(set(DEFAULT_EXCLUDES) | set(options.exclude))
@@ -166,7 +185,10 @@ class PhpAdapter:
             extra = item.get("extra", {})
             meta = extra.get("metadata", {})
             text = sf.line_text(line)
-            if meta.get("secret") and not meta.get("known_format") and not looks_like_real_secret(text):
+            if meta.get("env_fallback"):
+                if not fallback_is_secret(text):
+                    continue
+            elif meta.get("secret") and not meta.get("known_format") and not looks_like_real_secret(text):
                 continue
             cwe = int(meta.get("cwe", 0))
             fam = cwe_mod.family(cwe)
@@ -199,12 +221,20 @@ def _enclosing_function(project, rel, line) -> str:
     return best
 
 
-def _name_used_elsewhere(function, blobs) -> bool:
-    """A function nothing calls directly may still run through a callback or a dynamic call."""
-    if function == "<top-level>":
-        return False
+def _known_unreachable(found, project, interp) -> bool:
+    """Whether code no route reached is known to be dead. Anything less than certain stays open:
+    dynamic calls and frameworks can run code that nothing in the project names."""
+    function = found.function
+    if function in ("<top-level>", "<template>"):
+        if interp.dynamic_include:
+            return False
+        return project.web_root_certain or project.web_path(found.file) is not None
     name = function.split("::")[-1]
-    return sum(blob.count(name) for blob in blobs) > 1
+    if name.startswith("__") or sum(blob.count(name) for blob in project.all_text_blobs) > 1:
+        return False
+    if "::" not in function:
+        return "function" not in project.dynamic_calls
+    return "method" not in project.dynamic_calls and not project.has_external_ancestor(function.split("::")[0])
 
 
 def _trace(hit) -> list:

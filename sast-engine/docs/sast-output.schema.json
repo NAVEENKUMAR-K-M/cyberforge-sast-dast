@@ -20,7 +20,7 @@
       "additionalProperties": false,
       "properties": {
         "name": {"type": "string"},
-        "location": {"enum": ["query", "body", "any", "cookie", "header", "path", "file", "session", "unknown"]},
+        "location": {"enum": ["query", "body", "json", "any", "cookie", "header", "path", "file", "session", "unknown"]},
         "value": {"type": "string"}
       }
     },
@@ -108,7 +108,7 @@
             "read_line": {"type": "integer"}
           }
         },
-        "engines": {"type": "array", "items": {"enum": ["taint", "semgrep"]}}
+        "engines": {"type": "array", "items": {"enum": ["taint", "semgrep", "config"]}}
       }
     }
   }

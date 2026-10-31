@@ -1,6 +1,6 @@
 # DVWA dev-target config (security level set in the DVWA UI / cookie after login).
-# Start DVWA first: docker run -d -p 8080:80 ghcr.io/digininja/dvwa:latest
-# Then open http://localhost:8080/setup.php once by hand to create the DB.
+# Start DVWA first: docker compose -f docker-compose.dev.yml up -d
+# Then create its database once: python scripts/setup_dvwa.py
 
 target: "http://localhost:8080"
 allowlist:

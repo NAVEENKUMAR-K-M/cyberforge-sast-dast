@@ -30,6 +30,7 @@ def build_output(
     request_count: int,
     injection_point_count: int,
     latencies: list[float] | None = None,
+    coverage: dict | None = None,
 ) -> dict:
     deduped = dedupe_findings(findings)
     exportable = filter_exportable(deduped)
@@ -45,6 +46,7 @@ def build_output(
         "injection_point_count": injection_point_count,
         "p95_latency_seconds": round(_percentile(latencies, 0.95), 3),
         "finding_count": len(exportable),
+        "coverage": coverage or {},
         "findings": [f.to_dict() for f in exportable],
     }
 

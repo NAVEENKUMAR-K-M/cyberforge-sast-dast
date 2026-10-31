@@ -32,6 +32,16 @@ def _location_value(point: InjectionPoint) -> str:
 
 def build_request(point: InjectionPoint, payload: str) -> tuple[str, dict]:
     """Returns (url, kwargs) ready for RequestManager.send(point.method, url, **kwargs)."""
+    url, kwargs = _build(point, payload)
+    # Fields that belong in the other place from the one being tested.
+    if point.query_extras:
+        kwargs["params"] = {**point.query_extras, **kwargs.get("params", {})}
+    if point.body_extras and "json" not in kwargs:
+        kwargs["data"] = {**point.body_extras, **kwargs.get("data", {})}
+    return url, kwargs
+
+
+def _build(point: InjectionPoint, payload: str) -> tuple[str, dict]:
     loc = _location_value(point)
     kwargs: dict = {}
     if point.headers:

@@ -1,13 +1,23 @@
-# Dev-only stack: DVWA + ZAP daemon, for local iteration against the
-# plan's milestone target before the organisers' app is available.
+# Dev-only stack: DVWA, plus optional ZAP and a containerised DAST engine.
 #
+# DVWA is deliberately vulnerable, so every published port is bound to
+# 127.0.0.1 and can't be reached from the network. Keep it that way.
+#
+# From the host:
 #   docker compose -f docker-compose.dev.yml up -d
-#   # open http://localhost:8080/setup.php once by hand to create the DB
+#   python scripts/setup_dvwa.py
 #   python main.py scan --target http://localhost:8080 --config dvwa.yaml
+#
+# From a container, on the Compose network:
+#   docker compose -f docker-compose.dev.yml run --rm --build dast \
+#     scan --target http://dvwa --config dvwa.compose.yaml
+#
+# ZAP only starts when asked for:
+#   docker compose -f docker-compose.dev.yml up -d zap
 
 services:
   dvwa-db:
-    image: mariadb:10.11
+    image: mariadb:10.11@sha256:d769e37960821dfdcf096954f6e7ac89f747e116c1bba98e48edd265dfc7deae
     environment:
       MYSQL_ROOT_PASSWORD: rootpw
       MYSQL_DATABASE: dvwa
@@ -16,9 +26,9 @@ services:
     restart: unless-stopped
 
   dvwa:
-    image: ghcr.io/digininja/dvwa:latest
+    image: ghcr.io/digininja/dvwa@sha256:8029450682bd70e2e8cd1ffe8e46dd1885ff2a913296091cebfa8ba0a7d36498
     ports:
-      - "8080:80"
+      - "127.0.0.1:8080:80"
     environment:
       DB_SERVER: dvwa-db
       DB_DATABASE: dvwa
@@ -30,12 +40,24 @@ services:
     restart: unless-stopped
 
   zap:
-    image: zaproxy/zap-stable
+    image: zaproxy/zap-stable@sha256:030d3df57735dacbb83464854758e674dd9ad01d79d12a129a8e58b1fd384238
+    profiles: [zap]
     command: >
       zap.sh -daemon -host 0.0.0.0 -port 8090
       -config api.disablekey=true
       -config api.addrs.addr.name=.*
       -config api.addrs.addr.regex=true
     ports:
-      - "8090:8090"
+      # The API has no key, so loopback is what keeps it private.
+      - "127.0.0.1:8090:8090"
     restart: unless-stopped
+
+  dast:
+    profiles: [tools]
+    build:
+      # The repo root, because the image also needs common/.
+      context: ..
+      dockerfile: dast-engine/Dockerfile
+      target: base
+    volumes:
+      - ./output:/app/dast-engine/output

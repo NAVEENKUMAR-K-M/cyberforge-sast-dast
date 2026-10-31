@@ -91,3 +91,23 @@ DVWA = os.path.join(ROOT, "benchmarks", "external", "dvwa")
 def test_dvwa_results_dont_depend_on_set_ordering(tmp_path):
     results = [_fingerprints_with_seed(DVWA, seed, tmp_path) for seed in (1, 2, 3)]
     assert results[0] and all(r == results[0] for r in results)
+
+
+def test_hints_cover_open_confident_findings_only(tmp_path):
+    cli(tmp_path)
+    hints = json.load(open(tmp_path / "hints.json"))["hints"]
+    assert {"route": "/search.php", "method": "GET", "selector": None, "param": "q", "cwe": "CWE-89"} in hints
+    assert {"route": "/shop.php", "method": "GET", "selector": "action=view", "param": "pid", "cwe": "CWE-89"} in hints
+    # Marked safe in the code, so there's nothing to hint at.
+    assert not [h for h in hints if h["route"] == "/category.php" and h["cwe"] == "CWE-89"]
+    # A stored bug is also hinted where the value is written.
+    assert [h for h in hints if h["route"] == "/reviews.php" and h["param"] == "body" and h["cwe"] == "CWE-79"]
+
+
+def test_hints_use_route_aliases_too(tmp_path):
+    from sast.core.model import ScanResult
+    from sast.hints_export import to_hints
+    finding = {"status": "open", "confidence": "high", "routes": [{"id": "a", "path": "/x/index.php", "selector": None, "methods": ["GET"]}],
+               "stored_flow": None, "source_params": [{"name": "q", "location": "query"}], "cwe_family": "CWE-98"}
+    result = ScanResult("php", "", "", [{"id": "a", "aliases": ["/x/"]}], [finding])
+    assert {h["route"] for h in to_hints(result)["hints"]} == {"/x/index.php", "/x/"}

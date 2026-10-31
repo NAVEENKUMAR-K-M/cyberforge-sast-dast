@@ -82,6 +82,7 @@ class RequestManager:
         self.scope_guard = scope_guard
         self.budget = budget
         self.limiter = AdaptiveRateLimiter(start_rps=start_rps, floor_rps=floor_rps, ceiling_rps=start_rps)
+        self._timeout, self._verify_tls = timeout, verify_tls
         self.request_count = 0
         self.latencies: list[float] = []
         self._client = httpx.AsyncClient(
@@ -91,6 +92,7 @@ class RequestManager:
         )
         self.cookies: dict = {}
         self.extra_headers: dict = {}
+        self.landing_url: str | None = None  # the page a successful login lands on
 
     async def aclose(self) -> None:
         await self._client.aclose()
@@ -185,6 +187,25 @@ class RequestManager:
                 # Do not follow off-scope redirects; caller still gets this response.
                 return resp
         return resp
+
+    async def fresh_get(self, url: str) -> httpx.Response | None:
+        """A GET as a first-time visitor, with no cookies. Some things only happen on a first
+        visit: a server sets its session cookie once, and later responses never repeat it."""
+        if self.budget.expired() or not self.scope_guard.is_in_scope(url):
+            return None
+        await self.limiter.acquire()
+        try:
+            async with httpx.AsyncClient(timeout=self._timeout, verify=self._verify_tls, follow_redirects=False) as client:
+                resp = await client.get(url)
+        except (httpx.RequestError, httpx.InvalidURL) as exc:
+            logger.debug("Fresh request error %s: %s", url, exc)
+            return None
+        self.request_count += 1
+        return resp
+
+    def clear_session(self) -> None:
+        self.cookies.clear()
+        self._client.cookies.clear()
 
     async def get(self, url: str, **kwargs) -> httpx.Response | None:
         return await self.send("GET", url, **kwargs)

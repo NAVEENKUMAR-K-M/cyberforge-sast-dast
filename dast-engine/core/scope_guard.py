@@ -12,6 +12,10 @@ from dataclasses import dataclass, field
 from urllib.parse import urlparse
 
 
+# Used when a config doesn't set its own: words for actions that end a session or destroy data.
+DEFAULT_DENYLIST = ["logout", "logoff", "log-out", "signout", "sign-out", "reset", "delete", "destroy", "remove", "uninstall", "drop"]
+
+
 @dataclass
 class ScopeGuard:
     allowed_hosts: list[str] = field(default_factory=list)
@@ -69,12 +73,22 @@ class ScopeGuard:
         return True
 
     def is_denylisted(self, url: str) -> bool:
-        path = urlparse(url).path.lower()
+        """Checks the query string too: `/index.php?do=logout` and `/items?action=delete&id=3`
+        are destructive links on harmless paths, and a crawler would follow them."""
+        parsed = urlparse(url)
+        path = parsed.path.lower()
+        query = parsed.query.lower()
         for pattern in self.denylist_patterns:
             pattern = pattern.lower()
-            if fnmatch.fnmatch(path, pattern) or pattern in path:
+            if fnmatch.fnmatch(path, pattern) or pattern in path or pattern in query:
                 return True
         return False
+
+    def is_selector_denylisted(self, selector: str) -> bool:
+        """A selector can run a destructive action on a harmless path
+        ("do=logout" on /index.php), which a check of the path alone misses."""
+        text = selector.lower()
+        return any(pattern.lower() in text or fnmatch.fnmatch(text, pattern.lower()) for pattern in self.denylist_patterns)
 
     def check_redirect(self, original_url: str, location: str) -> bool:
         """Return True only if following `location` from `original_url` stays in scope."""

@@ -1,0 +1,10 @@
+# The build context is the repo root, so allow only what the image needs.
+# Docker reads this file because it's named after dast-engine/Dockerfile.
+*
+!dast-engine
+!common
+dast-engine/.venv
+dast-engine/output
+dast-engine/.pytest_cache
+common/tests
+**/__pycache__

@@ -1,4 +1,5 @@
 """PHP sources, sinks and sanitisers, kept as data apart from the interpreter."""
+import re
 
 # superglobal -> parameter location
 SUPERGLOBALS = {
@@ -109,7 +110,46 @@ LABEL_TEXT = {
 }
 UNSAFE_REGEX_CHARS = set("'\"<>/\\;&|`$(){}%#")
 
-# Methods on a framework request object -> where the value comes from
-REQUEST_METHODS = {"input": "any", "get": "any", "query": "query", "post": "body", "cookie": "cookie", "header": "header",
-                   "route": "path", "all": "any", "json": "body", "getparam": "any", "getqueryparam": "query",
-                   "getparsedbodyparam": "body", "getparsedbody": "body", "getqueryparams": "query"}
+# Recognising a request object by its role. Names only ever raise a guess, so they rank lower.
+REQUEST_VAR_NAMES = {"$request", "$req", "$httprequest", "$http_request"}
+REQUEST_PROPS = {"request", "input", "req"}
+REQUEST_TYPE_SUFFIXES = ("request", "serverrequestinterface", "requestinterface")
+# Methods that hand back a request object from somewhere else.
+REQUEST_GETTERS = {"getrequest", "request", "createfromglobals", "fromglobals"}
+# Parts of a request object -> where their values come from.
+REQUEST_BAGS = {"query": "query", "request": "body", "cookies": "cookie", "headers": "header",
+                "attributes": "path", "files": "file", "get": "query", "post": "body", "cookie": "cookie"}
+# Properties of a request object that aren't values a visitor chose.
+REQUEST_NON_INPUT_PROPS = {"method", "session", "user", "server", "route", "ip", "url", "uri", "path", "host", "scheme",
+                           "port", "locale", "format"}
+# Methods on a request object -> where the value comes from. These are verbs shared across frameworks.
+REQUEST_METHODS = {
+    "input": "any", "get": "any", "all": "any", "only": "any", "except": "any", "param": "any", "params": "any",
+    "getparam": "any", "getparams": "any", "getvar": "any", "getgetpost": "any", "getpostget": "any", "get_post": "any",
+    "validated": "any", "validate": "any", "string": "any", "str": "any",
+    "query": "query", "getquery": "query", "getget": "query", "getqueryparam": "query", "getqueryparams": "query",
+    "post": "body", "getpost": "body", "json": "json", "getjson": "json", "getjsonvar": "json", "getparsedbody": "body",
+    "getparsedbodyparam": "body", "getbody": "body", "getcontent": "body", "getrawinput": "body", "getinput": "body",
+    "cookie": "cookie", "getcookie": "cookie", "getcookieparams": "cookie",
+    "header": "header", "getheader": "header", "getheaderline": "header",
+    "route": "path", "segment": "path", "getattribute": "path",
+    "file": "file", "getfile": "file",
+}
+# SQL recognised by what the string says, whichever library runs it.
+SQL_STATEMENT = re.compile(
+    r"^\s*\(?\s*(select\b.+?\bfrom\b|insert\s+(ignore\s+)?into\b|replace\s+into\b|update\b.+?\bset\b|delete\s+from\b)",
+    re.I | re.S)
+# A string reading like SQL is only being logged here, not run.
+LOGGING_CALLS = {"debug", "info", "notice", "warning", "warn", "error", "critical", "alert", "emergency", "log", "trace",
+                 "error_log", "syslog", "trigger_error", "logmessage", "writelog"}
+# Built-ins that call a function they're given: name -> (position of the callback, how it's called).
+HIGHER_ORDER = {
+    "array_map": (0, "each"), "array_filter": (1, "keep"), "array_walk": (1, "each"), "array_walk_recursive": (1, "each"),
+    "usort": (1, "each"), "uasort": (1, "each"), "uksort": (1, "each"), "array_reduce": (1, "each"),
+    "preg_replace_callback": (1, "subject"), "call_user_func": (0, "direct"), "call_user_func_array": (0, "spread"),
+}
+# Words that mean "show this template", when the template is named without a file extension.
+RENDER_VERBS = {"view", "render", "display", "fetch", "make", "load", "template", "partial", "renderview", "renderpartial",
+                "renderfile", "show", "blade", "twig", "smarty", "assign_view"}
+# Words that hand a template its variables: ->with('name', $value) or ->assign('name', $value).
+ASSIGN_VERBS = {"with", "assign", "addattribute", "setvar", "assignbyref"}

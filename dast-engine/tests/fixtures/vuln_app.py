@@ -9,7 +9,7 @@ import sqlite3
 import subprocess
 import sys
 
-from flask import Flask, make_response, request
+from flask import Flask, Response, make_response, request
 from markupsafe import escape
 
 app = Flask(__name__)
@@ -66,6 +66,25 @@ def xss_vuln():
     return f"<html><body>Hello {name}</body></html>"
 
 
+@app.route("/xss_plain_text")
+def xss_plain_text():
+    # Reflected as-is, but a browser shows text/plain as text, so nothing can run.
+    return Response(request.args.get("q", ""), mimetype="text/plain")
+
+
+@app.route("/dispatch")
+def dispatch():
+    # One path, several pages: only action=view and action=track reach a query.
+    action = request.args.get("action")
+    if action not in ("view", "track"):
+        return "welcome"
+    try:
+        rows = _conn.execute(f"SELECT name FROM users WHERE id = {request.args.get('id', '1')}").fetchall()
+        return "<br>".join(r[0] for r in rows) or "no results"
+    except sqlite3.Error as e:
+        return f"sqlite3.OperationalError: {e}", 500
+
+
 @app.route("/xss_decoy")
 def xss_decoy():
     name = request.args.get("name", "")
@@ -109,6 +128,12 @@ with open(os.path.join(_BASE_DIR, "readme.txt"), "w", encoding="utf-8") as _f:
 @app.route("/traversal")
 def traversal_vuln():
     page = request.args.get("page", "readme.txt")
+    target = os.path.realpath(os.path.join(_BASE_DIR, page)).replace("\\", "/")
+    # A fixed Linux-style file, never the host's own: its format depends on the
+    # machine running the tests (macOS writes "root:*:0:0"), and tests shouldn't
+    # read real system files anyway.
+    if target.endswith("/etc/passwd"):
+        return "root:x:0:0:root:/root:/bin/bash\n"
     try:
         with open(os.path.join(_BASE_DIR, page), "r", errors="ignore") as f:
             return f.read()

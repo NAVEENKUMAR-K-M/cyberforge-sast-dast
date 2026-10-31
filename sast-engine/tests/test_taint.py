@@ -84,6 +84,12 @@ def test_assignment_inside_a_ternary_is_seen(scan):
     assert open_findings(scan({"page.php": f"<?php {code}"}), 78)
 
 
+def test_array_plus_merges_instead_of_doing_arithmetic(scan):
+    code = "function show($d) { echo $d['n']; }\nshow(['x' => 1] + ['n' => $_GET['n']]);"
+    assert open_findings(scan({"page.php": f"<?php {code}"}), 79)
+    assert safe_findings(scan({"page.php": "<?php echo 1 + $_GET['n'];"}), 79)
+
+
 def test_tainted_key_on_a_fixed_map_is_safe(scan):
     code = "$cols = ['n' => 'name', 'p' => 'price']; $c = $cols[$_GET['s']]; $db->query('SELECT 1 ORDER BY ' . $c);"
     assert not open_findings(scan({"page.php": f"<?php {code}"}), 89)
@@ -167,7 +173,7 @@ def test_extract_of_a_superglobal_taints_unset_variables(scan):
 def test_json_body_names_its_parameter(scan):
     code = "$d = json_decode(file_get_contents('php://input'), true); shell_exec('ls ' . $d['host']);"
     found = open_findings(scan({"page.php": f"<?php {code}"}), 78)
-    assert found[0]["source_params"][0] == {"name": "host", "location": "body"}
+    assert found[0]["source_params"][0] == {"name": "host", "location": "json"}
 
 
 def test_handler_registered_by_name_treats_parameters_as_input(scan):

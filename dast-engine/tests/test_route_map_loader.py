@@ -7,6 +7,7 @@ import json
 from core.models import ParamLocation
 from discovery.injection_points import from_route_map
 from discovery.route_map_loader import load_route_map
+from scanners.probes.util import build_request
 
 
 def write(tmp_path, routes: list[dict]):
@@ -46,16 +47,72 @@ def test_method_defaults_to_get_when_neither_key_is_present(tmp_path):
 
 # --- param locations beyond DAST's core set --------------------------------
 
-def test_any_location_is_tested_as_both_query_and_body(tmp_path):
-    """SAST's `any` means $_REQUEST: it can't tell if an attacker would use
-    the query string or the body, so both must be tried rather than
-    silently picking one."""
-    path = write(tmp_path, [{"path": "/x", "methods": ["GET"], "params": [{"name": "q", "location": "any"}]}])
-    routes = load_route_map(path)
-    assert len(routes) == 1
-    locations = {p["location"] for p in routes[0]["params"]}
-    assert locations == {"query", "body"}
-    assert all(p["name"] == "q" for p in routes[0]["params"])
+def test_any_location_is_tested_in_each_method_natural_place(tmp_path):
+    """SAST's `any` means $_REQUEST: either place works, so both are tried, but a GET
+    has no body and repeating the query on a POST only spends budget on the same input."""
+    path = write(tmp_path, [{"path": "/x", "methods": ["GET", "POST"], "params": [{"name": "q", "location": "any"}]}])
+    routes = {r["method"]: r["params"] for r in load_route_map(path)}
+    assert [p["location"] for p in routes["GET"]] == ["query"]
+    assert [p["location"] for p in routes["POST"]] == ["body"]
+
+
+def test_a_route_with_several_methods_tests_each_place_once(tmp_path):
+    path = write(tmp_path, [{"path": "/x", "methods": ["GET", "POST"], "params": [
+        {"name": "a", "location": "query"}, {"name": "b", "location": "body"}, {"name": "c", "location": "cookie"},
+    ]}])
+    routes = {r["method"]: {p["name"] for p in r["params"]} for r in load_route_map(path)}
+    assert routes == {"GET": {"a", "c"}, "POST": {"b"}}
+
+
+def test_a_required_field_stays_in_its_own_place(tmp_path):
+    """Regression test: locations used to be dropped, so a POST reading `save` from its
+    body and `id` from its URL got both in the URL, and its check never passed."""
+    path = write(tmp_path, [{
+        "path": "/x", "methods": ["POST"],
+        "params": [{"name": "id", "location": "query"}, {"name": "note", "location": "body"}],
+        "required_params": [{"name": "save", "location": "body", "value": "yes"}, {"name": "mode", "location": "query", "value": "a"}],
+    }])
+    points = {p.param: p for p in from_route_map(load_route_map(path), "http://h/")}
+    url, kwargs = build_request(points["id"], "PAYLOAD")
+    assert kwargs["params"] == {"id": "PAYLOAD", "mode": "a"} and kwargs["data"] == {"save": "yes"}
+    url, kwargs = build_request(points["note"], "PAYLOAD")
+    assert kwargs["data"] == {"note": "PAYLOAD", "save": "yes"} and kwargs["params"] == {"mode": "a"}
+
+
+def test_form_fields_are_sent_with_their_real_defaults(tmp_path):
+    """A browser sends every field of a form, and a submit button's value may be what the
+    code checks for. A made-up value isn't safe: pages can reject two exclusive fields both set."""
+    path = write(tmp_path, [{
+        "path": "/search.php", "methods": ["POST"], "params": [{"name": "item", "location": "body"}, {"name": "term", "location": "body"}],
+        "form_fields": [{"method": "POST", "action": "", "fields": [
+            {"name": "item", "type": "text"}, {"name": "term", "type": "text"}, {"name": "go", "type": "submit", "value": "Search"},
+            {"name": "upload", "type": "file"},
+        ]}],
+    }])
+    point = next(p for p in from_route_map(load_route_map(path)) if p.param == "item")
+    assert point.body_template == {"term": "", "go": "Search"}
+
+
+def test_a_form_for_another_page_or_method_is_ignored(tmp_path):
+    path = write(tmp_path, [{
+        "path": "/a.php", "methods": ["POST"], "params": [{"name": "x", "location": "body"}],
+        "form_fields": [
+            {"method": "POST", "action": "/other.php", "fields": [{"name": "other", "type": "text"}]},
+            {"method": "GET", "action": "", "fields": [{"name": "search", "type": "text"}]},
+        ],
+    }])
+    assert from_route_map(load_route_map(path))[0].body_template is None
+
+
+def test_path_values_become_testable_placeholders(tmp_path):
+    path = write(tmp_path, [{"path": "/a/{x}/b/{y?}", "methods": ["GET"], "params": [
+        {"name": "x", "location": "path"}, {"name": "q", "location": "query"},
+    ]}])
+    points = {p.param: p for p in from_route_map(load_route_map(path), "http://h/")}
+    assert points["x"].url == "http://h/a/{x}/b/1"
+    assert points["x"].baseline_url == "http://h/a/1/b/1"
+    assert build_request(points["x"], "PAYLOAD")[0] == "http://h/a/PAYLOAD/b/1"
+    assert points["q"].url == "http://h/a/1/b/1"
 
 
 def test_file_and_session_locations_are_skipped_not_mistested_as_query(tmp_path):
@@ -120,7 +177,7 @@ def test_required_param_with_an_exact_value_sends_that_value(tmp_path):
     path = write(tmp_path, [{
         "path": "/vulnerabilities/sqli/", "methods": ["GET"],
         "params": [{"name": "id", "location": "query"}],
-        "required_params": [{"name": "Submit", "location": "body", "value": "Submit"}],
+        "required_params": [{"name": "Submit", "location": "query", "value": "Submit"}],
     }])
     points = from_route_map(load_route_map(path))
     assert points[0].body_template == {"Submit": "Submit"}

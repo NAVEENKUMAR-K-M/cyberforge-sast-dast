@@ -78,7 +78,7 @@ def string_columns(text: str, target: Val) -> dict | None:
 
 def bound_pairs(method, args, literal_of, arg_nodes, fr) -> list:
     """Returns [(placeholder or position, value)] for a bind or execute call."""
-    if method in ("bindparam", "bindvalue") and len(args) >= 2:
+    if method in ("bindparam", "bindvalue") and len(args) >= 2 and arg_nodes:
         key = literal_of(arg_nodes[0], fr)
         return [(key, args[1])] if key is not None else []
     if method == "bind_param":

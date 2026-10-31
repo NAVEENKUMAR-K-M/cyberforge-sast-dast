@@ -36,21 +36,23 @@ async def submit_markers(rm: RequestManager, forms: list[CrawledForm]) -> list[M
         text_fields = [name for name, t in form.field_types.items() if t in ("text", "textarea", "email")]
         if not text_fields:
             continue
-        marker = f"dastmark{secrets.token_hex(6)}"
-        data = dict(form.fields)
-        for field in text_fields:
-            data[field] = marker
-        resp = await rm.post(form.action, data=data)
+        # One marker per field, so a match names the one field that persisted
+        # and the correlator can compare it with a real parameter name.
+        markers = {field: f"dastmark{secrets.token_hex(6)}" for field in text_fields}
+        resp = await rm.post(form.action, data={**form.fields, **markers})
         if resp is not None:
-            submissions.append(MarkerSubmission(form=form, field=",".join(text_fields), marker=marker))
+            submissions.extend(MarkerSubmission(form=form, field=field, marker=marker) for field, marker in markers.items())
     return submissions
 
 
 async def check_persistence(rm: RequestManager, submissions: list[MarkerSubmission], recheck_urls: list[str]) -> list[Finding]:
     findings = []
+    pages = {}
     for sub in submissions:
         for url in recheck_urls:
-            resp = await rm.get(url)
+            if url not in pages:
+                pages[url] = await rm.get(url)
+            resp = pages[url]
             if resp is None:
                 continue
             if sub.marker in resp.text:

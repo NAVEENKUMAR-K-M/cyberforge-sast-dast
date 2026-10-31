@@ -63,6 +63,14 @@ def _classify_context(body: str, payload: str) -> str | None:
     return None
 
 
+def _renders_as_markup(resp) -> bool:
+    """False when the browser treats the response as data, such as text/plain
+    or JSON, so a reflected tag can't run. No Content-Type at all can still be
+    sniffed as HTML, and XML can carry scripts, so both count as markup."""
+    content_type = resp.headers.get("content-type", "").lower()
+    return not content_type or "html" in content_type or "xml" in content_type
+
+
 class XssProbe(Probe):
     cwe = "CWE-79"
     name = "xss"
@@ -79,7 +87,7 @@ class XssProbe(Probe):
             payload = template.format(marker=marker)
             url, kwargs = build_request(point, payload)
             resp = await rm.send(point.method, url, **kwargs)
-            if resp is None:
+            if resp is None or not _renders_as_markup(resp):
                 continue
             context = _classify_context(resp.text, payload)
             if context:

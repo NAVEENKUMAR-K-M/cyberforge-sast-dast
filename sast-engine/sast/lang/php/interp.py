@@ -13,7 +13,7 @@ from sast.core.model import Param
 from . import rules
 from . import sql_columns
 from .project import ABS, FuncDef, N, Project, SourceFile
-from .values import EMPTY, Comp, Taint, Val, html_context, union
+from .values import EMPTY, ClosureRef, Comp, RequestRole, Taint, TemplateRef, Val, html_context, union
 
 MAX_DEPTH = 9
 NODE_BUDGET = 1_500_000
@@ -105,6 +105,8 @@ class Interpreter:
         self.selector_targets: set = set()
         self.top_frame: Frame | None = None
         self.buffering = 0
+        self.dynamic_include = False
+        self.assigned: dict = {}
         self.cur_line = 1
 
     # ---- entry points ----
@@ -116,6 +118,7 @@ class Interpreter:
         self.budget, self.entry_rel, self.low_conf = NODE_BUDGET, rel, 0
         self.memo, self.props, self.collectors = {}, {}, []
         self.buffering = 0
+        self.assigned = {}
 
     def run_entry(self, sf: SourceFile, route_list):
         self._reset(sf.rel, route_list)
@@ -132,7 +135,8 @@ class Interpreter:
         self._reset(fd.sf.rel, route_list)
         self.executed_funcs.add(fd.id)
         self._cover(fd.sf.rel)
-        env = dict(seed or {})
+        env = dict(self._request_params(fd))
+        env.update(seed or {})
         if fd.cls:
             env["$this"] = Val(cls=fd.cls)
         self.top_frame = Frame(env, fd.sf, fd.label, fd.cls, fd)
@@ -830,6 +834,10 @@ class Interpreter:
         if name in rules.SUPERGLOBALS:
             return self._whole_superglobal(name, node, fr)
         found = fr.env.get(name)
+        if found is not None and found is not EMPTY:
+            return found
+        if name.lower() in rules.REQUEST_VAR_NAMES:
+            return Val(closure=RequestRole(guessed=True))
         if found is not None:
             return found
         extracted = fr.env.get(EXTRACTED)
@@ -850,7 +858,7 @@ class Interpreter:
                 route.params.setdefault((name, location), Param(name, location))
                 if location == "query":
                     route.methods.add("GET")
-                elif location == "body":
+                elif location in ("body", "json"):
                     route.methods.add("POST")
                 elif location == "any":
                     route.methods.update({"GET", "POST"})
@@ -874,6 +882,8 @@ class Interpreter:
         base = self.ev(base_node, fr)
         index = self.ev(index_node, fr) if index_node is not None else EMPTY
         literal = self._single_literal(index_node, fr) if index_node is not None else None
+        if isinstance(base.closure, RequestRole):
+            return self._request_source(literal, base.closure, "any", fr, node)
         if literal is None and index.tainted and base.fields and not base.taints:
             # A tainted key picks among known values, so the result isn't attacker text.
             taint = next(iter(index.taints.values()), None)
@@ -912,14 +922,50 @@ class Interpreter:
         return Val.of(self._source(key or "*", location, fr, node))
 
     def ev_member(self, node, fr):
+        name = node.f("name")
+        prop = name.text if name is not None and name.type == "name" else None
+        recv = self.ev(node.f("object"), fr)
+        if prop and isinstance(recv.closure, RequestRole):
+            bag = rules.REQUEST_BAGS.get(prop.lower())
+            if bag:
+                return Val(closure=RequestRole(bag, recv.closure.guessed))
+            if prop.lower() in rules.REQUEST_NON_INPUT_PROPS:
+                return EMPTY
+            return self._request_source(prop, recv.closure, "any", fr, node)
         path = self.path_of(node, fr)
         if path is not None:
-            return self.read_path(path, fr)
-        recv = self.ev(node.f("object"), fr)
-        name = node.f("name")
-        if name is not None and recv.cls:
-            return self._read_prop(recv, name.text)
-        return Val(recv.flat().taints)
+            value = self.read_path(path, fr)
+        elif name is not None and recv.cls:
+            value = self._read_prop(recv, name.text)
+        else:
+            value = Val(recv.flat().taints)
+        if prop and prop.lower() in rules.REQUEST_PROPS and not (value.tainted or value.cls or value.closure or value.fields or value.strs):
+            return Val(closure=RequestRole(guessed=True))
+        return value
+
+    def _request_source(self, key, role, default_location, fr, node) -> Val:
+        taint = self._source(key or "*", role.location or default_location, fr, node)
+        return Val.of(taint._copy(penalty=1) if role.guessed else taint)
+
+    def _request_value(self, role, method, arg_nodes, fr, node) -> Val:
+        key = self._single_literal(arg_nodes[0], fr) if arg_nodes else None
+        return self._request_source(key, role, rules.REQUEST_METHODS[method], fr, node)
+
+    def _is_request_type(self, hint: str) -> bool:
+        """A type named like a request, unless it's an unrelated class of the project's own."""
+        lowered = hint.lower()
+        if not lowered.endswith(rules.REQUEST_TYPE_SUFFIXES):
+            return False
+        return lowered not in self.p.classes or self.p.has_external_ancestor(hint)
+
+    def _request_params(self, fd) -> dict:
+        """Handlers that frameworks call directly still receive a real request object."""
+        out = {}
+        for param in fd.params.kids if fd.params is not None else []:
+            name, type_node = param.f("name"), param.f("type")
+            if name is not None and type_node is not None and self._is_request_type(type_node.text.lstrip("?").split("\\")[-1]):
+                out[name.text] = Val(closure=RequestRole())
+        return out
 
     def ev_scoped_prop(self, node, fr):
         scope, name = node.f("scope"), node.f("name")
@@ -934,7 +980,8 @@ class Interpreter:
         if lowered == "parent":
             info = self.p.classes.get((fr.cls or "").lower())
             return info["parent"] if info else None
-        return scope.split("\\")[-1]
+        name = scope.split("\\")[-1]
+        return fr.sf.aliases.get(name, name)
 
     def ev_assign(self, node, fr):
         left, right = node.f("left"), node.f("right")
@@ -965,6 +1012,8 @@ class Interpreter:
         left, right = self.ev(node.f("left"), fr), self.ev(node.f("right"), fr)
         if op in COMPARISON_OPS:
             return EMPTY
+        if op == "+" and (left.fields or right.fields):
+            return union(left, right)  # `+` on arrays merges them
         if op in ARITHMETIC_OPS:
             return Val({t.key: t.sanitized("int") for t in union(left, right).all_taints()})
         return union(left, right)
@@ -1139,16 +1188,91 @@ class Interpreter:
         return EMPTY
 
     def ev_closure(self, node, fr):
-        """Runs a closure body once with what it captures, so sinks inside are seen."""
+        """Runs a closure once with what it captures, so sinks inside are seen, and keeps it so
+        that a later call can run it again with real arguments."""
         if self.discover or node.f("body") is None:
             return EMPTY
-        env = dict(fr.env)
-        inner = Frame(env, fr.sf, fr.func, fr.cls, fr.fd)
-        body = node.f("body")
-        if body.type == "compound_statement":
-            self.exec_block(body.kids, inner)
-            return union(*inner.returns) if inner.returns else EMPTY
-        return self.ev(body, inner)
+        ref = ClosureRef(node, dict(fr.env), fr.sf, fr.func, fr.cls, fr.fd)
+        self._run_closure(ref, [], fr, node)
+        return Val(closure=ref)
+
+    def _run_closure(self, ref: ClosureRef, args, fr, node) -> Val:
+        marker = f"closure@{id(ref.node)}"
+        if self.discover or marker in self.call_stack or len(self.call_stack) >= MAX_DEPTH:
+            return union(*[Val(a.flat().taints) for a in args]) if args else EMPTY
+        env = dict(ref.env)
+        position = 0
+        params = ref.node.f("parameters")
+        for param in params.kids if params is not None else []:
+            name = param.f("name")
+            if name is None:
+                continue
+            if position < len(args):
+                env[name.text] = args[position]
+            position += 1
+        inner = Frame(env, ref.sf, ref.func, ref.cls, ref.fd)
+        body = ref.node.f("body")
+        self.call_stack.append(marker)
+        try:
+            if body.type == "compound_statement":
+                self.exec_block(body.kids, inner)
+                return union(*inner.returns) if inner.returns else EMPTY
+            return self.ev(body, inner)
+        finally:
+            self.call_stack.pop()
+
+    def _call_callable(self, callee: Val, args, fr, node):
+        """Calls whatever a callable value refers to: a closure, a function name, `Class::method`
+        or `[$object, 'method']`. Returns None when it can't tell what that is."""
+        if isinstance(callee.closure, ClosureRef):
+            return self._run_closure(callee.closure, args, fr, node)
+        if callee.fields and "0" in callee.fields and "1" in callee.fields:
+            method = next(iter(callee.fields["1"].strs), None)
+            target = callee.fields["0"]
+            if method is None or "*" in method:
+                return None
+            if not target.cls and target.closure is None and len(target.strs) == 1:
+                cls = next(iter(target.strs)).split("\\")[-1]
+                target = Val(cls=fr.sf.aliases.get(cls, cls))
+            return self._dispatch_method(target, method, args, [], node, fr)
+        blanks = [_BLANK] * len(args)
+        for text in sorted(callee.strs):
+            if "*" in text or not text:
+                continue
+            if "::" in text:
+                cls, method = text.rsplit("::", 1)
+                fd = self.p.find_method(self._scope_class(cls, fr), method.lower())
+                if fd is not None:
+                    return self.call_user(fd, args, fr, Val(cls=fd.cls), node)
+                continue
+            name = text.split("\\")[-1].lower()
+            if name in self.p.functions:
+                return union(*[self.call_user(fd, args, fr, None, node) for fd in self.p.functions[name][:2]])
+            return self.call_builtin(name, args, blanks, node, fr)
+        return None
+
+    def _higher_order(self, name, args, node, fr):
+        """Built-ins that call a function they're given. The data reaches that function's parameters."""
+        position, style = rules.HIGHER_ORDER[name]
+        callback = args[position] if len(args) > position else EMPTY
+        data = [arg for index, arg in enumerate(args) if index != position]
+        passthrough = union(*[Val(arg.flat().taints) for arg in data]) if data else EMPTY
+        if style == "direct":
+            result = self._call_callable(callback, data, fr, node)
+        elif style == "spread":
+            first = data[0] if data else EMPTY
+            values = [first.fields[key] for key in sorted(first.fields)] if first.fields else [Val(first.flat().taints)]
+            result = self._call_callable(callback, values, fr, node)
+        elif style == "subject":
+            result = self._call_callable(callback, [passthrough], fr, node)
+        else:
+            elements = [Val(arg.flat().taints) for arg in data]
+            if name == "array_reduce":
+                elements.reverse()
+            result = self._call_callable(callback, elements, fr, node)
+        if result is None or style == "keep":
+            return passthrough
+        return EMPTY if name in ("array_walk", "array_walk_recursive", "usort", "uasort", "uksort") else result
 
     def ev_new(self, node, fr):
         name_node = next((k for k in node.kids if k.type in ("name", "qualified_name")), None)
@@ -1157,10 +1281,17 @@ class Interpreter:
         if name_node is None:
             return union(*args) if args else EMPTY
         cls = name_node.text.split("\\")[-1]
+        cls = fr.sf.aliases.get(cls, cls)
+        if self._is_request_type(cls):
+            return Val(closure=RequestRole())
         recv = Val(cls=cls)
         ctor = self.p.find_method(cls, "__construct")
         if ctor is not None and not self.discover:
             self.call_user(ctor, args, fr, recv, node, args_node)
+        elif ctor is None:
+            statement = self._sql_call(f"new {cls}", args, node, fr)
+            if statement is not None:
+                return Val(cls=cls, tables=statement.tables)
         return recv
 
     # ---- calls ----
@@ -1191,14 +1322,22 @@ class Interpreter:
         if func is None:
             return EMPTY
         arg_nodes = self._arg_nodes(node)
+        first_class = _is_first_class(arg_nodes)
         if func.type not in ("name", "qualified_name", "relative_name"):
             callee = self.ev(func, fr)
+            if first_class:
+                return callee
             args = [self.ev(a, fr) for a in arg_nodes]
-            for text in sorted(callee.strs):
-                for fd in self.p.functions.get(text.lower(), []):
-                    return self.call_user(fd, args, fr, None, node)
+            result = self._call_callable(callee, args, fr, node)
+            if result is not None:
+                return result
+            statement = self._sql_call("dynamic call", args, node, fr)
+            if statement is not None:
+                return statement
             return union(*[Val(a.flat().taints) for a in args]) if args else EMPTY
         name = func.text.split("\\")[-1]
+        if first_class:
+            return Val.lit(name)
         lowered = name.lower()
         if lowered in ("isset", "empty"):
             return EMPTY
@@ -1217,6 +1356,8 @@ class Interpreter:
         flat_all = union(*[Val(a.flat().taints) for a in args]) if args else EMPTY
         first = args[0] if args else EMPTY
 
+        if name in rules.HIGHER_ORDER:
+            return self._higher_order(name, args, node, fr)
         if name == "header":
             return self._header_call(first, node, fr)
         if name in rules.BIND_FUNCS:
@@ -1225,7 +1366,7 @@ class Interpreter:
             self._bound(name, first, bound, node, fr)
             return EMPTY
         if name in ("file_get_contents", "fopen", "file") and any("php://input" in text for text in first.strs):
-            return Val.of(self._source("*", "body", fr, node))
+            return Val.of(self._source("*", "json", fr, node))
         if name in rules.SINK_FUNCS:
             cwe, index = rules.SINK_FUNCS[name]
             if cwe == 79 and name == "printf" and args and args[0].strs:
@@ -1286,12 +1427,9 @@ class Interpreter:
         if name == "preg_match" and len(arg_nodes) >= 3:
             self.assign(arg_nodes[2], Val(args[1].flat().taints), fr, node)
             return EMPTY
-        if name == "view" and args:
-            self._render_blade(args, node, fr)
-            return EMPTY
-        if name == "request":
+        if name in ("request", "input"):
             key = self._single_literal(arg_nodes[0], fr) if arg_nodes else None
-            return Val.of(self._source(key, "any", fr, node)) if key else Val(closure="request")
+            return Val.of(self._source(key, "any", fr, node)) if key else Val(closure=RequestRole())
         if name in ("getallheaders", "apache_request_headers"):
             return Val.of(self._source("*", "header", fr, node))
         if name == "extract":
@@ -1311,10 +1449,14 @@ class Interpreter:
             return Val(fields=fields) if fields else EMPTY
         if name == "define":
             return EMPTY
-        if name == "array_map" and len(args) >= 2:
-            return Val(union(*args[1:]).flat().taints)
         if name in rules.PASSTHROUGH_FUNCS:
             return Val(flat_all.taints)
+        rendered = self._render_if_template(name, args, node, fr)
+        if rendered is not None:
+            return rendered
+        statement = self._sql_call(name, args, node, fr)
+        if statement is not None:
+            return statement
         # An unknown function may or may not clean its input, so taint continues at lower confidence.
         if not flat_all.taints:
             return EMPTY
@@ -1419,7 +1561,20 @@ class Interpreter:
             columns = sql_columns.bound_columns(min(stmt.strs, default=""), pairs or [])
             self._store_write(f"db:{table[2:]}", Val(fields=columns) if columns else bound, fr, node)
 
-    def _sql_sink(self, name, target, node, fr):
+    def _sql_call(self, name, args, node, fr):
+        """Any call we can't see into, given a string that reads like SQL, is treated as running it.
+        This covers database libraries and wrappers without having to list them, at lower
+        confidence because the code doing the work isn't visible."""
+        if name in rules.LOGGING_CALLS:
+            return None
+        for arg in args:
+            if any(rules.SQL_STATEMENT.match(text) for text in arg.strs):
+                result = self._sql_sink(name, arg, node, fr, penalty=1)
+                rows = self._fetch(result, node, fr)
+                return Val(rows.taints, result.strs, rows.fields, tables=result.tables, closure=rows.closure)
+        return None
+
+    def _sql_sink(self, name, target, node, fr, penalty=0):
         tables = set()
         for text in sorted(target.strs):
             match = WRITE_TABLE.search(text)
@@ -1431,7 +1586,7 @@ class Interpreter:
             else:
                 tables.update(t.lower() for t in READ_TABLE.findall(text))
         if target.tainted:
-            self.sink(89, name, target, node, fr)
+            self.sink(89, name, target, node, fr, penalty=penalty)
         return Val(strs=target.strs, tables=frozenset(tables))
 
     def _fetch(self, result: Val, node, fr):
@@ -1447,22 +1602,31 @@ class Interpreter:
         recv = self.ev(recv_node, fr)
         name_node = node.f("name")
         arg_nodes = self._arg_nodes(node)
+        if _is_first_class(arg_nodes) and name_node is not None and name_node.type == "name":
+            return Val(fields={"0": recv, "1": Val.lit(name_node.text)})
         args = [self.ev(a, fr) for a in arg_nodes]
-        if name_node is None or name_node.type not in ("name",):
+        if name_node is None or name_node.type != "name":
+            method = self._single_literal(name_node, fr)
+            if method:
+                return self._dispatch_method(recv, method, args, arg_nodes, node, fr)
+            statement = self._sql_call("dynamic call", args, node, fr)
+            if statement is not None:
+                return statement
             return union(*[Val(a.flat().taints) for a in args]) if args else EMPTY
         return self._dispatch_method(recv, name_node.text, args, arg_nodes, node, fr)
 
     def ev_scoped_call(self, node, fr):
         scope, name_node = node.f("scope"), node.f("name")
         arg_nodes = self._arg_nodes(node)
-        args = [self.ev(a, fr) for a in arg_nodes]
         if scope is None or name_node is None:
             return EMPTY
         cls = self._scope_class(scope.text, fr)
+        if _is_first_class(arg_nodes):
+            return Val.lit(f"{cls}::{name_node.text}")
+        args = [self.ev(a, fr) for a in arg_nodes]
         lowered = name_node.text.lower()
         if cls in ("Request", "Input") and lowered in rules.REQUEST_METHODS:
-            key = self._single_literal(arg_nodes[0], fr) if arg_nodes else None
-            return Val.of(self._source(key or "*", rules.REQUEST_METHODS[lowered], fr, node))
+            return self._request_value(RequestRole(), lowered, arg_nodes, fr, node)
         if cls in ("Redirect",) and lowered in ("to", "away") and args and args[0].tainted:
             self.sink(601, f"Redirect::{lowered}", args[0], node, fr)
             return EMPTY
@@ -1473,9 +1637,14 @@ class Interpreter:
 
     def _dispatch_method(self, recv, name, args, arg_nodes, node, fr):
         lowered = name.lower()
-        if recv.closure == "request" and lowered in rules.REQUEST_METHODS:
-            key = self._single_literal(arg_nodes[0], fr) if arg_nodes else None
-            return Val.of(self._source(key or "*", rules.REQUEST_METHODS[lowered], fr, node))
+        if isinstance(recv.closure, RequestRole) and lowered in rules.REQUEST_METHODS:
+            return self._request_value(recv.closure, lowered, arg_nodes, fr, node)
+        if lowered in rules.ASSIGN_VERBS and not self.discover:
+            self._assign_template_vars(args, arg_nodes, fr)
+            if isinstance(recv.closure, TemplateRef):
+                self._render(recv.closure.names, self.assigned, fr, node)
+            if lowered not in self.p.methods_by_name:
+                return recv
         if recv.cls:
             fd = self.p.find_method(recv.cls, lowered)
             if fd is not None:
@@ -1494,10 +1663,19 @@ class Interpreter:
 
     def _external_method(self, lowered, recv, args, arg_nodes, node, fr):
         file, line = fr.sf.rel, node.line
+        rendered = self._render_if_template(lowered, args, node, fr)
+        if rendered is not None:
+            return rendered
         if lowered in rules.SINK_METHODS:
             cwe, index = rules.SINK_METHODS[lowered]
             target = args[index] if len(args) > index else EMPTY
             return self._sql_sink(lowered, target, node, fr)
+        # Before binding and fetching: `$db->execute("UPDATE ..." . $x)` runs SQL it was handed.
+        statement = self._sql_call(lowered, args, node, fr)
+        if statement is not None:
+            return statement
+        if lowered in rules.REQUEST_GETTERS and not args:
+            return Val(closure=RequestRole(guessed=True))
         if lowered in rules.BIND_METHODS:
             index = rules.BIND_METHODS[lowered]
             bound = union(*args[index:]) if len(args) > index else EMPTY
@@ -1592,7 +1770,9 @@ class Interpreter:
             type_node = param.f("type")
             if type_node is not None and value.cls is None and not value.tainted:
                 hint = type_node.text.lstrip("?").split("\\")[-1]
-                if hint.lower() in self.p.classes:
+                if value.closure is None and self._is_request_type(hint):
+                    env[name.text] = Val(closure=RequestRole())
+                elif hint.lower() in self.p.classes:
                     env[name.text] = value.with_fields(value.fields)
                     env[name.text].cls = hint
 
@@ -1642,20 +1822,50 @@ class Interpreter:
         if self.collectors:
             self.collectors[-1].append(hit)
 
-    def _render_blade(self, args, node, fr):
-        """Checks a Blade view: {{ $x }} is escaped, but {!! $x !!} prints raw HTML."""
-        fields = args[1].fields if len(args) > 1 and args[1].fields else {}
-        for name in sorted(args[0].strs):
-            rel = self.p.blade_views.get(name)
-            if rel is None:
-                continue
-            for line, expr in self.p.blade_raw[rel]:
-                root = re.match(r"\$(\w+)", expr)
-                value = fields.get(root.group(1)) if root else None
-                if value is None or not value.tainted:
+    def _assign_template_vars(self, args, arg_nodes, fr):
+        """Remembers `->with('name', $value)` and `->assign(['name' => $value])` for the next render."""
+        if len(args) >= 2 and arg_nodes:
+            key = self._single_literal(arg_nodes[0], fr)
+            if key:
+                self.assigned[key] = args[1]
+        elif args and args[0].fields:
+            self.assigned.update(args[0].fields)
+
+    def _render_if_template(self, verb, args, node, fr):
+        """Recognises a call that renders a template in this project, whichever library does it.
+        A file name with a template extension is enough. A bare name also needs a verb like `render`,
+        so that `$cache->get('home')` doesn't count just because a view is called home."""
+        if self.discover:
+            return None
+        names = []
+        for arg in args:
+            for text in arg.strs:
+                if text not in self.p.templates and text not in self.p.php_views:
                     continue
-                for taint in value.all_taints():
-                    self._record_at(79, "{!! !!}", taint, rel, line, expr, fr)
+                if verb in rules.RENDER_VERBS or text.endswith((".twig", ".tpl", ".blade.php", ".phtml")):
+                    names.append(text)
+        if not names:
+            return None
+        fields = {key: value for arg in args for key, value in (arg.fields or {}).items()}
+        self._render(names, {**self.assigned, **fields}, fr, node)
+        return Val(closure=TemplateRef(names))
+
+    def _render(self, names, fields, fr, node):
+        for name in sorted(set(names)):
+            rel = self.p.templates.get(name)
+            if rel is not None:
+                for line, variable, expr in self.p.template_raw.get(rel, ()):
+                    value = fields.get(variable)
+                    if value is not None and value.tainted:
+                        for taint in value.all_taints():
+                            self._record_at(79, "unescaped template output", taint, rel, line, expr, fr)
+                continue
+            rel = self.p.php_views.get(name)
+            if rel in self.p.files:
+                env = {"$" + key: value for key, value in fields.items() if key != "*"}
+                if "$this" in fr.env:
+                    env["$this"] = fr.env["$this"]
+                self._run_included(rel, Frame(env, self.p.files[rel], cls=fr.cls, fd=fr.fd), False)
 
     # ---- includes ----
 
@@ -1668,6 +1878,9 @@ class Interpreter:
         if val.tainted and not self.discover:
             self.sink(22, node.type.split("_")[0], val, node, fr)
         targets = self._include_targets(val, fr)
+        # Files nothing names can still run through this, so they aren't known to be unreachable.
+        if val.tainted or not val.strs or any("*" in text for text in val.strs):
+            self.dynamic_include = True
         if self.discover:
             bucket = self.edges.setdefault(fr.sf.rel, set())
             bucket.update(rel for rel, _, _ in targets if not val.selector)
@@ -1782,7 +1995,7 @@ class Interpreter:
         if any(META_REFRESH.search(text) for text in val.strs):
             self.sink(601, "meta refresh", val, node, fr)
 
-    def sink(self, cwe, sink_name, val, node, fr, forced_safe=None):
+    def sink(self, cwe, sink_name, val, node, fr, forced_safe=None, penalty=0):
         if self.discover:
             return
         for taint in val.all_taints():
@@ -1791,7 +2004,7 @@ class Interpreter:
                 reason = rules.LABEL_TEXT[forced_safe]
             else:
                 reason = self._protection(cwe, taint, sink_name)
-            self._record(cwe, sink_name, taint, reason, node, fr)
+            self._record(cwe, sink_name, taint, reason, node, fr, penalty)
 
     def _protection(self, cwe, taint, sink_name=""):
         san = taint.san
@@ -1829,7 +2042,9 @@ class Interpreter:
     def _record_at(self, cwe, sink_name, taint, rel, line, expr, fr):
         """Records a sink in a file this interpreter doesn't parse, such as a Blade template."""
         hit = Hit()
-        hit.cwe, hit.sink, hit.taint, hit.reason = cwe, sink_name, taint, None
+        protected = taint.san & {"int", "allowlist", "html_escape", "html_noquotes"}
+        hit.cwe, hit.sink, hit.taint = cwe, sink_name, taint
+        hit.reason = rules.LABEL_TEXT["html_escape"] if protected else None
         hit.file, hit.line, hit.func, hit.expr = rel, line, "<template>", expr
         hit.sink_step = (rel, line, f"reaches sink {sink_name}")
         hit.routes = {r.id: r for r in self.route_stack[-1]} if self.route_stack else {}
@@ -1838,7 +2053,7 @@ class Interpreter:
         if self.collectors:
             self.collectors[-1].append(hit)
 
-    def _record(self, cwe, sink_name, taint, reason, node, fr):
+    def _record(self, cwe, sink_name, taint, reason, node, fr, penalty=0):
         comp = taint.comp
         same_place = comp is not None and comp.file == fr.sf.rel and comp.line == node.line
         use_comp = comp is not None and not same_place and (cwe == 79 or comp.file != fr.sf.rel or comp.func != fr.func)
@@ -1854,7 +2069,7 @@ class Interpreter:
         hit.sink_step = (fr.sf.rel, node.line, f"reaches sink {sink_name}")
         hit.routes = {r.id: r for r in self.route_stack[-1]} if self.route_stack else {}
         hit.conditions = list(self.conditions)
-        hit.penalty = taint.penalty + self.low_conf
+        hit.penalty = taint.penalty + self.low_conf + penalty
         if cwe == 79 and (taint.location == "header" or taint.name in ("REQUEST_URI", "QUERY_STRING")):
             hit.penalty += 1  # browsers encode these or won't let another site set them
         if cwe == 79 and self.buffering:
@@ -1896,6 +2111,22 @@ def _does_work(stmts) -> bool:
             return True
         stack.extend(cur.kids)
     return False
+
+
+def _is_first_class(arg_nodes) -> bool:
+    """`strlen(...)` makes a callable out of a function instead of calling it."""
+    return bool(arg_nodes) and arg_nodes[0].type == "variadic_placeholder"
+
+
+class _BlankNode:
+    """Stands in for an argument's syntax when a function is called through a callback."""
+    type, text, kids, line = "", "", (), 0
+
+    def f(self, name):
+        return None
+
+
+_BLANK = _BlankNode()
 
 
 class _Pos:

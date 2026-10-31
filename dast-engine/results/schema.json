@@ -14,6 +14,7 @@
     "method": {"type": "string"},
     "url": {"type": "string"},
     "route_template": {"type": "string"},
+    "selector": {"type": ["string", "null"], "description": "query value that picks this page on a shared path, e.g. action=view"},
     "param": {"type": ["string", "null"]},
     "param_location": {"type": ["string", "null"], "enum": ["query", "body", "json", "path", "header", "cookie", null]},
     "payload": {"type": "string"},

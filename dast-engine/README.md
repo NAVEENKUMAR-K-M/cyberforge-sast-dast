@@ -97,9 +97,9 @@ config.yaml + optional route_map.json (from SAST)
 python -m venv .venv && .venv/Scripts/activate   # or source .venv/bin/activate
 pip install -r requirements.txt
 
-# Dev target: DVWA (+ its MariaDB backend)
+# Dev target: DVWA (+ its MariaDB backend). Published on 127.0.0.1 only.
 docker compose -f docker-compose.dev.yml up -d
-# open http://localhost:8080/setup.php once by hand to create the DB
+python scripts/setup_dvwa.py   # creates the DB; waits for DVWA to come up
 
 python main.py scan --target http://localhost:8080 --config dvwa.yaml
 python eval/score.py output/dvwa_results.json eval/answer_keys/dvwa.json
@@ -119,12 +119,47 @@ mechanism.
 
 To compare against the ZAP backend instead: `--active-backend zap` (needs
 `docker compose -f docker-compose.dev.yml up -d zap` and `pip install
-python-owasp-zap-v2.4`). Pass `--active-backend none` to exercise
+python-owasp-zap-v2.4`). ZAP only starts when asked for. Its API has no key, so
+it's published on 127.0.0.1 only. Pass `--active-backend none` to exercise
 discovery + passive checks alone.
+
+### In a container
+
+The engine can also run on the Compose network, with no Python on the host.
+Results land in `output/`:
+
+```bash
+docker compose -f docker-compose.dev.yml up -d
+python scripts/setup_dvwa.py
+docker compose -f docker-compose.dev.yml run --rm --build dast \
+  scan --target http://dvwa --config dvwa.compose.yaml
+```
+
+The image is built from the repo root, because it also needs
+`common/cwe_families.json`. `Dockerfile.dockerignore` keeps everything else out
+of the build.
+
+### Using SAST's route map
+
+`--route-map` takes the SAST engine's `routes.json` as a target list, which
+reaches pages a crawler can't find. A route's `selector` (`action=view` on
+`/shop.php`) is sent with every request to that route and recorded on the
+finding, so two bugs on one path stay separate. A route or selector matching the
+denylist is never requested.
+
+### Re-testing one finding
+
+```bash
+python main.py verify --target http://localhost:8080 --config dvwa.yaml \
+  --cwe CWE-89 --method GET --route /vulnerabilities/sqli/ --param id
+```
+
+This prints `{"reproduced": true|false, "finding": ...}` on stdout. `--selector`
+and `--param-location` are optional. `api.py` explains how to call it in-process.
 
 ## Verification
 
-- `pytest` (57 tests) — scope guard, auth (including two real bugs found
+- `pytest` (108 tests) — scope guard, auth (including two real bugs found
   and fixed: an empty-redirect-body false positive and a non-idempotent
   ZAP exclude list), finding-id stability (including the app-scope CWE
   collision above), route-template derivation, passive checks, the
@@ -133,8 +168,14 @@ discovery + passive checks alone.
   (`tests/fixtures/vuln_app.py`) — plus a dedicated regression test for
   every false positive listed above.
 - Verified live against DVWA (security=low): **100% detection, 0% false
-  alarms** against `eval/answer_keys/dvwa.json`'s 11-item expected set,
-  in ~127s of a 150s budget (well under the PRD's 5-minute total).
+  alarms** against `eval/answer_keys/dvwa.json`'s 11-item expected set, in
+  about 85s of a 150s budget, both from the host and in a container. This engine
+  was tuned on DVWA and that key is small, so treat this as a regression check,
+  not as an accuracy estimate for an unseen app.
+- On the SAST engine's benchmark shop (`sast-engine/benchmarks/shop`), with its
+  route map: 13 of the 22 planted runtime-provable bugs proven, 0 of the 8 decoys
+  checked by `eval/verify_shop.py` reported as injection, in about 117s. The
+  remaining 9 aren't reached or confirmed yet.
 - Re-running the same scan twice produces identical `finding_id` values
   (FR-6).
 

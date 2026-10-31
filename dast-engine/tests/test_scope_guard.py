@@ -46,3 +46,10 @@ def test_is_allowed_host_ignores_denylist_but_not_allowlist():
     assert guard.is_allowed_host("http://localhost:8080/setup.php")
     # non-allowlisted host -> still refused
     assert not guard.is_allowed_host("http://evil.example.com/setup.php")
+
+
+def test_a_selector_can_be_denylisted_on_a_harmless_path():
+    guard = ScopeGuard(allowed_hosts=["localhost"], denylist_patterns=["logout", "reset"])
+    assert guard.is_selector_denylisted("do=logout")
+    assert guard.is_selector_denylisted("PAGE=Reset.php")
+    assert not guard.is_selector_denylisted("action=view")

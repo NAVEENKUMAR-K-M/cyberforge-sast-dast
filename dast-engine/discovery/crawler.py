@@ -46,6 +46,7 @@ class CrawledForm:
 class CrawlResult:
     urls: set[str] = field(default_factory=set)  # GET URLs with query params preserved
     forms: list[CrawledForm] = field(default_factory=list)
+    api_specs: list[str] = field(default_factory=list)  # OpenAPI/Swagger documents the app publishes
 
 
 async def _fetch_robots_sitemap(rm: RequestManager, base_url: str, seen: set[str]) -> None:
@@ -104,6 +105,7 @@ async def crawl(
     await _fetch_robots_sitemap(rm, base, result.urls)
     api_specs = await _fetch_api_specs(rm, base)
     result.urls.update(api_specs)
+    result.api_specs = api_specs
 
     while queue and len(visited) < max_pages:
         if rm.budget.expired():

@@ -4,10 +4,9 @@ Points the target param at a canary domain that will never resolve to
 anything real, then checks the Location header, a meta-refresh tag, and
 any window.location/assignment in the body for that same canary host --
 never following the redirect (RequestManager already disables that).
-Tier-1 hint: only parameters whose name suggests a redirect target
-(url/next/redirect/return/...) get this probe at all, which keeps the
-per-point cost near zero on everything else -- this never *skips* a
-genuinely named redirect param, it just orders work sensibly.
+Every parameter gets one request, because apps can name a redirect target
+anything. Parameters whose name suggests one (url/next/redirect/return/...), or
+that SAST hinted at, get the full list, which keeps the cost low on the rest.
 """
 from __future__ import annotations
 
@@ -49,10 +48,11 @@ class OpenRedirectProbe(Probe):
     async def detect(self, rm: RequestManager, point: InjectionPoint, baseline: Baseline | None, *, hinted: bool = False) -> list[Finding]:
         if point.param is None:
             return []
+        templates = self._payloads.get("payload_templates", [])
         if not (hinted or self.is_relevant(point)):
-            return []  # not skipped for a hinted/named param; just not tried blindly on everything
+            templates = templates[:1]
 
-        for template in self._payloads.get("payload_templates", []):
+        for template in templates:
             payload = template.format(canary=self._canary)
             url, kwargs = build_request(point, payload)
             resp = await rm.send(point.method, url, allow_redirect_follow_once=False, **kwargs)

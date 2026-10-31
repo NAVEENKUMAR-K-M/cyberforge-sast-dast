@@ -47,9 +47,9 @@ python common/validate.py sast-engine/out/shop/findings.common.json dast-engine/
 | `confidence` | `confirmed`→`high`, `firm`→`medium`, `tentative`→`low`. The native tier is kept in `runtime.verification`. | unchanged |
 | `cwe_family` | looked up in `cwe_families.json` | the engine's own family, same table |
 | `params` | the single tested parameter | `source_params` |
-| `routes` | the route template, `methods: [method]`, no aliases | the finding's routes, with `aliases` from the route map |
+| `routes` | the route template, `methods: [method]`, no aliases, and the `selector` when the point came from SAST's route map | the finding's routes, with `aliases` from the route map |
 | `scope` | `endpoint` or `app` | `endpoint` if any route reaches it, else `code` |
 
 ## Matching a pair
 
-Match on `cwe_family`, then route (`path` or an alias), then parameter `name`. The `common/examples/` folder holds one real SQL injection found by each side in the same app.
+Match on `cwe_family`, then route (`path` or an alias, and `selector` when both sides have one), then parameter `name`. The `common/examples/` folder holds one real SQL injection found by each side in the same app.

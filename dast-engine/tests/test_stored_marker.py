@@ -53,3 +53,27 @@ async def test_no_finding_when_marker_never_echoed(fixture_app_url):
         await rm.aclose()
 
     assert findings == []
+
+
+@pytest.mark.asyncio
+async def test_each_field_is_reported_by_its_own_name(fixture_app_url):
+    """Regression test: all of a form's fields used to share one marker and be
+    reported as one param, "message,title", which matches no real parameter."""
+    rm = make_rm(fixture_app_url)
+    try:
+        form = CrawledForm(
+            method="POST",
+            action=f"{fixture_app_url}/comment",
+            fields={"message": "", "title": ""},
+            field_types={"message": "text", "title": "text"},
+        )
+        submissions = await submit_markers(rm, [form])
+        assert {s.field for s in submissions} == {"message", "title"}
+        assert len({s.marker for s in submissions}) == 2
+
+        # The fixture only stores `message`, so only that field may be reported.
+        findings = await check_persistence(rm, submissions, [f"{fixture_app_url}/comments"])
+    finally:
+        await rm.aclose()
+
+    assert [f.param for f in findings] == ["message"]

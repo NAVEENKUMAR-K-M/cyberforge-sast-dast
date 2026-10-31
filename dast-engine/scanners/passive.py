@@ -112,6 +112,17 @@ class PassiveScanner:
         if "samesite" not in lower:
             self._cookie_issue_urls["missing_samesite"].add(url)
 
+    async def check_first_visit_cookies(self, urls: list[str]) -> None:
+        """Session cookies are set once, on a first visit, so a scan that already holds one
+        never sees them again. Asks as a new visitor, so their flags can be checked."""
+        for url in urls:
+            resp = await self.rm.fresh_get(url)
+            if resp is None:
+                continue
+            for key, value in resp.headers.multi_items():
+                if key.lower() == "set-cookie":
+                    self._check_cookie(url, value)
+
     async def active_checks(self) -> list[Finding]:
         """A handful of checks that need their own dedicated requests."""
         findings = []

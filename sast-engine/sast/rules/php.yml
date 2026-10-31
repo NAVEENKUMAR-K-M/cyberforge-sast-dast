@@ -42,6 +42,14 @@ rules:
     metadata: {cwe: 798, secret: true}
     patterns:
       - pattern-regex: (?i)\$\w*(pass(word|wd)?|pwd)\w*\s*={2,3}\s*['"][^'"]+['"]
+  - id: secret-env-fallback
+    languages: [php]
+    severity: ERROR
+    message: Hard-coded secret used as a fallback for an environment variable
+    metadata: {cwe: 798, secret: true, env_fallback: true}
+    pattern-either:
+      - pattern-regex: (?i)\bgetenv\s*\(\s*['"][\w.-]*(pass(word|wd)?|pwd|secret|api_?key|auth_?key|access_?key|private_?key|token)[\w.-]*['"]\s*\)\s*(\?:|\?\?)\s*['"][^'"]+['"]
+      - pattern-regex: (?i)\benv\s*\(\s*['"][\w.-]*(pass(word|wd)?|pwd|secret|api_?key|auth_?key|access_?key|private_?key|token)[\w.-]*['"]\s*,\s*['"][^'"]+['"]
   - id: secret-known-format
     languages: [php]
     severity: ERROR

@@ -7,6 +7,7 @@ import os
 import sys
 
 from sast.common_export import to_common
+from sast.hints_export import to_hints
 from sast.core.language import ScanOptions
 from sast.lang.php.adapter import PhpAdapter
 from sast.sarif import to_sarif
@@ -41,6 +42,8 @@ def main(argv=None) -> int:
         json.dump({**meta, "routes": result.routes}, handle, indent=2)
     with open(os.path.join(args.out, "findings.common.json"), "w") as handle:  # FR-3: common/FORMAT.md
         json.dump(to_common(result), handle, indent=2)
+    with open(os.path.join(args.out, "hints.json"), "w") as handle:
+        json.dump(to_hints(result), handle, indent=2)
     if args.sarif:
         with open(os.path.join(args.out, "findings.sarif"), "w") as handle:
             json.dump(to_sarif(result), handle, indent=2)

@@ -12,6 +12,14 @@ from sast.semgrep_runner import looks_like_real_secret
     "'api_key' => 'pk_9f8e7d6c5b4a39281706',",
     "$this->secret = 'abc';",
     "$apiToken = 'a8f3k29dk3kd92kd';",
+    # Weak values are still real credentials once they're committed.
+    "$jwt_secret = 'secret';",
+    "define('DB_PASSWORD', 'password');",
+    "$db_password = 'root';",
+    "$admin_password = 'test';",
+    "$password = 'changeme';",
+    "$apiKey = 'test';",
+    "$secret = 'example';",
 ])
 def test_real_secrets(line):
     assert looks_like_real_secret(line)
@@ -27,7 +35,10 @@ def test_real_secrets(line):
     '$this->mCSRFTokenStrength = "NONE";',
     '$row->password = "******";',
     "define('DB_PASSWORD', '');",
-    "$password = 'changeme';",
+    "'password' => 'password',",
+    "'password' => 'required|string|min:8',",
+    "$password = '<your password>';",
+    "$secret = '${APP_SECRET}';",
     '$password_help = "Enter your password here";',
 ])
 def test_not_secrets(line):

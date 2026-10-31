@@ -10,6 +10,9 @@ import tree_sitter
 import tree_sitter_php
 
 SOURCE_EXTS = {".php", ".inc", ".phtml", ".php5", ".php7"}
+# Parsed as PHP only when they really contain PHP.
+MIXED_EXTS = {".tpl", ".html", ".htm"}
+TEMPLATE_DIRS = {"views", "view", "templates", "template", "tpl"}
 DEFAULT_EXCLUDES = {"vendor", "node_modules", "bower_components", ".git", "tests", "test", "__tests__", "docs"}
 ABS = "<abs>"  # stands in for the project root when a path comes from __DIR__ and friends
 MAX_FILE_BYTES = 1_500_000
@@ -107,7 +110,7 @@ def _always_exits(body) -> bool:
 
 
 class SourceFile:
-    __slots__ = ("path", "rel", "data", "tree", "lines", "has_top_level_code", "direct_guard")
+    __slots__ = ("path", "rel", "data", "tree", "lines", "has_top_level_code", "direct_guard", "aliases")
 
     def __init__(self, path, rel, data):
         self.path, self.rel, self.data = path, rel, data
@@ -115,6 +118,7 @@ class SourceFile:
         self.tree = _convert(_parser.parse(data).root_node, self)
         self.has_top_level_code = _has_top_level_code(self.tree)
         self.direct_guard = _has_direct_access_guard(self.tree)
+        self.aliases: dict[str, str] = {}
 
     def line_text(self, line) -> str:
         return self.lines[line - 1].strip() if 0 < line <= len(self.lines) else ""
@@ -167,7 +171,12 @@ def _terminates_text(text) -> bool:
 
 
 # Calls that hand a function to other code by name, so the caller's arguments can be attacker input.
-_CALLBACK_RE = re.compile(r"""\b(?:register|add_function|call_user_func(?:_array)?|array_map|array_walk|add_action|add_filter)\s*\(\s*(?:['"][\w-]+['"]\s*,\s*)?['"]([A-Za-z_]\w*)['"]""")
+# Built-ins that take a callback are followed directly in the interpreter, with their real arguments.
+_CALLBACK_RE = re.compile(r"""\b(?:register|add_function|add_action|add_filter)\s*\(\s*(?:['"][\w-]+['"]\s*,\s*)?['"]([A-Za-z_]\w*)['"]""")
+_TEMPLATE_EXT = re.compile(r"(\.blade\.php|\.html\.twig|\.twig|\.tpl)$")
+_BLADE_RAW = re.compile(r"\{!!(.*?)!!\}")
+_TWIG_OUTPUT = re.compile(r"\{\{\s*([A-Za-z_]\w*)([^}]*)\}\}")
+_SMARTY_OUTPUT = re.compile(r"\{\$(\w+)([^}]*)\}")
 _LINK_RE = re.compile(r"[?&]([A-Za-z_]\w*)=([\w\-./]+)")
 _FORM_RE = re.compile(r"<form\b([^>]*)>(.*?)</form>", re.I | re.S)
 _FORM_METHOD_RE = re.compile(r"method\s*=\s*\\?[\"']?(\w+)", re.I)
@@ -200,6 +209,43 @@ def parse_forms(text: str) -> list:
     return forms
 
 
+def _view_names(rel: str) -> list:
+    """The ways code can name a view: `orders.show`, `orders/show` or `orders/show.twig`."""
+    parts = rel.split("/")
+    start = next((i + 1 for i, part in enumerate(parts[:-1]) if part.lower() in TEMPLATE_DIRS), len(parts) - 1)
+    full = "/".join(parts[start:])
+    bare = _TEMPLATE_EXT.sub("", full)
+    bare = re.sub(r"\.(php|phtml|inc|html?)$", "", bare)
+    return [full, bare, bare.replace("/", "."), rel]
+
+
+def _raw_outputs(name: str, lines: list) -> list:
+    """Returns (line, variable, text) for each place a template prints a value without escaping it."""
+    out = []
+    if name.endswith(".blade.php"):
+        for number, line in enumerate(lines, 1):
+            for expr in _BLADE_RAW.findall(line):
+                root = re.match(r"\s*\$(\w+)", expr)
+                if root:
+                    out.append((number, root.group(1), expr.strip()))
+    elif name.endswith(".twig"):
+        autoescape_off = False
+        for number, line in enumerate(lines, 1):
+            if re.search(r"\{%\s*autoescape\s+false\s*%\}", line):
+                autoescape_off = True
+            for variable, rest in _TWIG_OUTPUT.findall(line):
+                if autoescape_off or re.search(r"\|\s*raw\b", rest):
+                    out.append((number, variable, f"{variable}{rest}".strip()))
+            if re.search(r"\{%\s*endautoescape\s*%\}", line):
+                autoescape_off = False
+    elif name.endswith(".tpl"):
+        for number, line in enumerate(lines, 1):
+            for variable, rest in _SMARTY_OUTPUT.findall(line):
+                if not re.search(r"\|\s*(escape|htmlspecialchars|strip_tags)\b", rest):
+                    out.append((number, variable, f"${variable}{rest}".strip()))
+    return out
+
+
 class Project:
     def __init__(self, root: str, web_root: str | None = None, exclude=None):
         self.root = os.path.abspath(root)
@@ -212,12 +258,16 @@ class Project:
         self.constants: dict[str, set] = {}
         self.links: dict[str, set] = {}
         self.callbacks: set = set()
-        self.blade_views: dict[str, str] = {}
-        self.blade_raw: dict[str, list] = {}
+        self.templates: dict[str, str] = {}
+        self.template_raw: dict[str, list] = {}
+        self.php_views: dict[str, str] = {}
+        # How code can run without a call we can see: "function" or "method".
+        self.dynamic_calls: set = set()
         self.all_text_blobs: list[str] = []
         self.skipped: list[str] = []
         self._load()
-        self._load_blade()
+        self._load_templates()
+        self.web_root_certain = bool(web_root)
         self.web_root = self._web_root(web_root)
         self._rel_paths = sorted(self.files)
         self._index()
@@ -226,7 +276,8 @@ class Project:
         for dirpath, dirnames, filenames in os.walk(self.root):
             dirnames[:] = sorted(d for d in dirnames if d not in self.exclude)
             for name in sorted(filenames):
-                if os.path.splitext(name)[1].lower() not in SOURCE_EXTS:
+                ext = os.path.splitext(name)[1].lower()
+                if ext not in SOURCE_EXTS and ext not in MIXED_EXTS:
                     continue
                 full = os.path.join(dirpath, name)
                 rel = os.path.relpath(full, self.root).replace(os.sep, "/")
@@ -235,16 +286,19 @@ class Project:
                         self.skipped.append(rel)
                         continue
                     with open(full, "rb") as handle:
-                        self.files[rel] = SourceFile(full, rel, handle.read())
+                        data = handle.read()
                 except OSError:
                     self.skipped.append(rel)
+                    continue
+                if ext in SOURCE_EXTS or b"<?" in data:
+                    self.files[rel] = SourceFile(full, rel, data)
 
-    def _load_blade(self):
-        """Blade isn't PHP, so its raw-output tags are read with a pattern."""
+    def _load_templates(self):
+        """Template languages aren't PHP, so their unescaped output is read with patterns."""
         for dirpath, dirnames, filenames in os.walk(self.root):
             dirnames[:] = sorted(d for d in dirnames if d not in self.exclude)
             for name in sorted(filenames):
-                if not name.endswith(".blade.php"):
+                if not _TEMPLATE_EXT.search(name):
                     continue
                 full = os.path.join(dirpath, name)
                 rel = os.path.relpath(full, self.root).replace(os.sep, "/")
@@ -253,17 +307,18 @@ class Project:
                         lines = handle.read().splitlines()
                 except OSError:
                     continue
-                view = re.sub(r"^.*?views/", "", rel)[: -len(".blade.php")].replace("/", ".")
-                self.blade_views[view] = rel
-                self.blade_raw[rel] = [(number, match.strip()) for number, line in enumerate(lines, 1)
-                                       for match in re.findall(r"\{!!(.*?)!!\}", line)]
+                for key in _view_names(rel):
+                    self.templates.setdefault(key, rel)
+                self.template_raw[rel] = _raw_outputs(name, lines)
 
     def _web_root(self, explicit) -> str:
         if explicit:
+            self.web_root_certain = True
             found = os.path.relpath(os.path.join(self.root, explicit), self.root).replace(os.sep, "/")
             return "" if found == "." else found
         for name in ("public/index.php", "web/index.php", "htdocs/index.php", "www/index.php", "public_html/index.php"):
             if name in self.files:
+                self.web_root_certain = True
                 return posixpath.dirname(name)
         index_dirs = sorted((posixpath.dirname(rel) for rel in self.files if posixpath.basename(rel) == "index.php"),
                             key=lambda d: (d.count("/") if d else -1, d))
@@ -284,11 +339,18 @@ class Project:
             self.callbacks.update(name.lower() for name in _CALLBACK_RE.findall(text))
             for name, value in _LINK_RE.findall(text):
                 self.links.setdefault(name, set()).add(value)
+            if any(part.lower() in TEMPLATE_DIRS for part in sf.rel.split("/")[:-1]) and not _TEMPLATE_EXT.search(sf.rel):
+                for key in _view_names(sf.rel):
+                    self.php_views.setdefault(key, sf.rel)
 
     def _index_node(self, node, sf, cls):
         stack = [(node, cls)]
         while stack:
             cur, owner = stack.pop()
+            self._note_dynamic(cur)
+            if cur.type == "namespace_use_clause" and " as " in cur.text:
+                target, alias = cur.text.rsplit(" as ", 1)
+                sf.aliases[alias.strip()] = target.strip().split("\\")[-1]
             if cur.type == "function_definition":
                 name = cur.f("name")
                 if name is not None and cur.f("body") is not None:
@@ -307,21 +369,73 @@ class Project:
                 if name is not None:
                     owner = name.text
                     info = self.classes.setdefault(owner.lower(), {"name": owner, "parent": None, "methods": {}})
+                    info["node"] = cur
                     for kid in cur.kids:
                         if kid.type == "base_clause" and kid.kids:
                             info["parent"] = kid.kids[0].text.split("\\")[-1]
+                        elif kid.type == "class_interface_clause":
+                            info.setdefault("interfaces", []).extend(k.text.split("\\")[-1] for k in kid.kids)
+                    body = cur.f("body")
+                    for kid in body.kids if body is not None else []:
+                        if kid.type == "use_declaration":
+                            info.setdefault("traits", []).extend(
+                                k.text.split("\\")[-1] for k in kid.kids if k.type in ("name", "qualified_name"))
             for kid in cur.kids:
                 stack.append((kid, owner))
 
+    def _note_dynamic(self, node):
+        """Records calls whose target is only known at runtime, because they can reach code nothing names."""
+        kind = node.type
+        if kind == "function_call_expression":
+            func = node.f("function")
+            if func is None or func.type not in ("name", "qualified_name", "relative_name"):
+                self.dynamic_calls.add("function")
+            elif func.text.split("\\")[-1].lower() in ("call_user_func", "call_user_func_array", "forward_static_call"):
+                args = node.f("arguments")
+                first = args.kids[0] if args is not None and args.kids else None
+                if first is None or first.text[:1] not in ("'", '"'):
+                    self.dynamic_calls.update({"function", "method"})
+        elif kind in ("member_call_expression", "nullsafe_member_call_expression", "scoped_call_expression"):
+            name = node.f("name")
+            if name is not None and name.type != "name":
+                self.dynamic_calls.add("method")
+        elif kind == "object_creation_expression":
+            if any(k.type in ("variable_name", "member_access_expression", "subscript_expression", "parenthesized_expression",
+                              "scoped_property_access_expression", "dynamic_variable_name") for k in node.kids):
+                self.dynamic_calls.add("method")
+
     def find_method(self, cls: str | None, name: str):
+        """Looks through a class, its traits and its parents."""
         seen = set()
-        while cls and cls.lower() in self.classes and cls.lower() not in seen:
-            seen.add(cls.lower())
-            info = self.classes[cls.lower()]
+        queue = [cls]
+        while queue:
+            current = queue.pop(0)
+            if not current or current.lower() in seen or current.lower() not in self.classes:
+                continue
+            seen.add(current.lower())
+            info = self.classes[current.lower()]
             if name in info["methods"]:
                 return info["methods"][name]
-            cls = info["parent"]
+            queue.extend(info.get("traits", []))
+            queue.append(info["parent"])
         return None
+
+    def has_external_ancestor(self, cls: str) -> bool:
+        """True when a class extends or implements something outside the project, such as a
+        framework's controller. Code we can't see may then call its methods."""
+        seen = set()
+        queue = [cls]
+        while queue:
+            current = queue.pop()
+            if not current or current.lower() in seen:
+                continue
+            seen.add(current.lower())
+            info = self.classes.get(current.lower())
+            if info is None:
+                return True
+            queue.append(info["parent"])
+            queue.extend(info.get("interfaces", []))
+        return False
 
     def web_path(self, rel: str) -> str | None:
         """URL path for a source file, or None when it sits outside the web root."""

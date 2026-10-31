@@ -3,18 +3,18 @@
 """
 from __future__ import annotations
 
-import asyncio
 import logging
 import time
+from urllib.parse import parse_qsl, urlencode, urljoin
 
-from core.auth import login
+from core.auth import SessionKeeper, login
 from core.models import InjectionPoint
 from core.request_manager import Budget, RequestManager
 from core.scheduler import DeadlineTimer, allocate
 from core.scope_guard import ScopeGuard
-from discovery.baseline import get_baseline
 from discovery.crawler import crawl
 from discovery.injection_points import build_injection_points
+from discovery.openapi_loader import load_from_url
 from discovery.route_map_loader import load_route_map, load_sast_hints
 from results.normalizer import build_output, write_output
 from scanners.passive import PassiveScanner
@@ -43,17 +43,23 @@ async def run_scan(config: dict) -> dict:
 
     all_findings = []
     points: list[InjectionPoint] = []
+    coverage: dict = {}
+    session = SessionKeeper(rm, config.get("auth", {}))
     started_at = time.time()
     try:
         auth_ok = await login(rm, config.get("auth", {}))
         if not auth_ok:
             logger.warning("Auth did not appear to succeed; continuing unauthenticated")
+        await session.start()
 
         # --- Discovery ---
         route_map = load_route_map(config["route_map_path"]) if config.get("route_map_path") else []
-        seed_urls = config.get("seed_urls") or [target]
+        seed_urls = [*(config.get("seed_urls") or [target]), *_route_map_pages(route_map, target, scope_guard)]
         crawl_result = await crawl(rm, scope_guard, seed_urls, max_pages=config.get("max_pages", 200))
-        points = build_injection_points(route_map, crawl_result, base_url=target)
+        openapi_routes = []
+        for spec_url in crawl_result.api_specs:
+            openapi_routes.extend(await load_from_url(rm, spec_url))
+        points = build_injection_points(route_map, crawl_result, openapi_routes, base_url=target)
         # Crawled points are already guaranteed in-scope (the crawler checks
         # before enqueueing a URL at all), but route-map-sourced ones never
         # go through that check -- a route map legitimately lists every
@@ -63,26 +69,24 @@ async def run_scan(config: dict) -> dict:
         # URL rather than skipping it, which crashed the whole scan on the
         # first denylisted route-map point reached (confirmed in testing).
         before = len(points)
-        points = [p for p in points if scope_guard.is_in_scope(p.url)]
+        points = [
+            p for p in points
+            if scope_guard.is_in_scope(p.url) and not (p.selector and scope_guard.is_selector_denylisted(p.selector))
+        ]
+        coverage.update({"points_found": before, "points_dropped_by_scope": before - len(points)})
         if before != len(points):
             logger.info("Dropped %d route-map point(s) outside scope/denylist", before - len(points))
         logger.info("Discovered %d injection points across %d URLs", len(points), len(crawl_result.urls))
 
-        baselines = {}
-        for point in points:
-            if timer.remaining() <= phases.active_s + phases.passive_s + report_reserve_s:
-                break
-            b = await get_baseline(rm, point.method, point.url)
-            if b is not None:
-                baselines[point.key()] = b
-
         # --- Passive checks (reuse responses already fetched during crawl) ---
         passive = PassiveScanner(rm, scope_guard, target)
-        for url in list(crawl_result.urls)[:200]:
+        for url in sorted(crawl_result.urls)[:200]:
             if timer.remaining() <= phases.active_s + report_reserve_s:
                 break
             resp = await rm.get(url)
             passive.inspect_response(url, resp)
+        first_visit_urls = [target, *sorted(crawl_result.urls)[:9]]
+        await passive.check_first_visit_cookies(first_visit_urls)
         all_findings.extend(await passive.active_checks())
         all_findings.extend(passive.finalize())
 
@@ -98,7 +102,7 @@ async def run_scan(config: dict) -> dict:
         active_backend = config.get("active_backend", "python")
         if active_backend == "python":
             hints = load_sast_hints(config.get("hints_path"))
-            all_findings.extend(await run_probes(rm, points, baselines, hints=hints))
+            all_findings.extend(await run_probes(rm, points, hints=hints, coverage=coverage, session=session))
         elif active_backend == "zap":
             from scanners.zap_runner import ZapRunner
 
@@ -127,6 +131,7 @@ async def run_scan(config: dict) -> dict:
         await rm.aclose()
 
     finished_at = time.time()
+    coverage["session_relogins"] = session.relogins
     output = build_output(
         all_findings,
         target=target,
@@ -135,6 +140,19 @@ async def run_scan(config: dict) -> dict:
         request_count=rm.request_count,
         injection_point_count=len(points),
         latencies=rm.latencies,
+        coverage=coverage,
     )
     write_output(output, config.get("output_path", "output/dast_results.json"))
     return output
+
+
+def _route_map_pages(route_map: list[dict], target: str, scope_guard: ScopeGuard) -> list[str]:
+    """Pages only the route map knows about, so passive checks and form discovery see them too."""
+    pages = []
+    for route in route_map:
+        selector = route.get("selector")
+        if route.get("method") != "GET" or "{" in route["path"] or (selector and scope_guard.is_selector_denylisted(selector)):
+            continue
+        url = urljoin(target + "/", route["path"].lstrip("/"))
+        pages.append(f"{url}?{urlencode(parse_qsl(selector, keep_blank_values=True))}" if selector else url)
+    return list(dict.fromkeys(pages))

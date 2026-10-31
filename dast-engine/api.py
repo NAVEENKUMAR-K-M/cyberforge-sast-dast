@@ -3,14 +3,24 @@ code-only (SAST) finding's (cwe, method, route, param), re-check it live
 and report whether it reproduces at runtime. This lets correlation upgrade
 a Code-only finding to Confirmed without re-running the whole scan.
 
-Usage from the correlation engine:
-    from dast_engine.api import verify
+The folder is named dast-engine, which can't be a Python package name, and its
+modules import each other as top-level names (core, scanners, ...). So there
+are two ways in:
+
+    # From another process, with JSON on stdout. Run with dast-engine as the
+    # working directory. This keeps the two engines' imports apart.
+    python main.py verify --target http://localhost:8080 --config dvwa.yaml \\
+        --cwe CWE-89 --method GET --route /vulnerabilities/sqli/ --param id
+
+    # In-process, with dast-engine on sys.path:
+    from api import verify
     result = await verify("CWE-89", "GET", "/vulnerabilities/sqli/", "id",
                            target="http://localhost:8080", config=cfg)
 """
 from __future__ import annotations
 
 import logging
+from urllib.parse import parse_qsl, urlencode
 
 from core.request_manager import Budget, RequestManager
 from core.scheduler import DeadlineTimer
@@ -41,6 +51,7 @@ async def verify(
     target: str,
     config: dict,
     param_location: str = "query",
+    selector: str | None = None,
 ) -> dict | None:
     """Re-test one specific (cwe, method, route, param) tuple live.
 
@@ -57,9 +68,11 @@ async def verify(
     timer = DeadlineTimer(float(config.get("verify_deadline_seconds", 30)))
     scope_guard = ScopeGuard.from_config(config)
     url = target.rstrip("/") + route
-    if not scope_guard.is_in_scope(url):
-        logger.warning("verify(): %s is out of scope/denylisted", url)
+    if not scope_guard.is_in_scope(url) or (selector and scope_guard.is_selector_denylisted(selector)):
+        logger.warning("verify(): %s (selector %s) is out of scope/denylisted", url, selector)
         return None
+    if selector:
+        url = f"{url}?{urlencode(parse_qsl(selector, keep_blank_values=True))}"
 
     budget = Budget(deadline_ts=timer.start + timer.total_s, report_reserve_s=2.0)
     rm = RequestManager(scope_guard=scope_guard, budget=budget)
@@ -73,4 +86,7 @@ async def verify(
     finally:
         await rm.aclose()
 
-    return finding.to_dict() if finding else None
+    if finding is None:
+        return None
+    finding.selector = selector
+    return finding.to_dict()

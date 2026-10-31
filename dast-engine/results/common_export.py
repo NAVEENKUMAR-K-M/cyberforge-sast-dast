@@ -48,7 +48,7 @@ def finding_to_common(f: dict) -> dict:
     params = [{"name": param, "location": f.get("param_location") or "unknown"}] if param else []
     # App-scope findings (missing header, cookie flag, ...) belong to no one route.
     routes = [] if scope == "app" else [
-        {"path": f["route_template"], "aliases": [], "selector": None, "methods": [f["method"].upper()]}
+        {"path": f["route_template"], "aliases": [], "selector": f.get("selector"), "methods": [f["method"].upper()]}
     ]
     return {
         "id": f"dast:{f['finding_id']}",
@@ -84,7 +84,7 @@ def to_common(output: dict) -> dict:
         "target": output.get("target", ""),
         "stats": {
             key: output[key]
-            for key in ("elapsed_seconds", "request_count", "injection_point_count", "p95_latency_seconds", "finding_count")
+            for key in ("elapsed_seconds", "request_count", "injection_point_count", "p95_latency_seconds", "finding_count", "coverage")
             if key in output
         },
         "findings": [finding_to_common(f) for f in output.get("findings", [])],

@@ -17,7 +17,7 @@ These need to mean the same thing on both sides, or findings can't be compared.
 | route `path` | URL path, without host or query string | `/vulnerabilities/sqli/index.php` |
 | route `selector` | The query value that picks this page, if any | `page=dns-lookup.php` |
 | route `methods` | HTTP methods | `["GET", "POST"]` |
-| parameter `location` | `query`, `body`, `any` (GET or POST), `cookie`, `header`, `path`, `file` or `session` | `body` |
+| parameter `location` | `query`, `body`, `json`, `any` (GET or POST), `cookie`, `header`, `path`, `file` or `session` | `body` |
 
 CWE families are listed in [sast/core/cwe.py](../sast/core/cwe.py). Path parameters use the form the app declares, such as `/orders/{id}`, so DAST's concrete `/orders/7` has to be matched against that pattern.
 
@@ -35,9 +35,11 @@ CWE families are listed in [sast/core/cwe.py](../sast/core/cwe.py). Path paramet
 | `conditions` | When this code runs, for pages that pick a file at runtime, such as `$vulnerabilityFile == 'low.php'` |
 | `stored_flow` | For stored bugs: the table or session key, plus where it's written and read |
 | `fingerprint` | Stable ID with no line numbers, so it survives edits and rescans |
-| `engines` | Which analysis found it: `taint`, `semgrep` or both |
+| `engines` | Which analysis found it: `taint`, `semgrep` or `config` (secrets in configuration files, whose values are masked in `snippet`) |
 
 ## Route: extras DAST can use
+
+A scan also writes `hints.json`: each exact route, parameter and CWE the code suggests is worth a closer look, for DAST's `--hints`. Low-confidence findings are left out.
 
 `routes.json` lists every URL the code can serve, including pages no link points to. DAST can use it as a target list instead of crawling.
 
@@ -51,7 +53,7 @@ CWE families are listed in [sast/core/cwe.py](../sast/core/cwe.py). Path paramet
 
 ## Advice for the correlator
 
-- **Suppressed findings are kept on purpose.** A runtime proof overrules them: if DAST exploits something SAST marked safe, trust DAST and treat it as a miss in the suppression logic. Leave them out of the reported list otherwise, so decoys don't count as false alarms.
+- **Suppressed findings are kept on purpose,** so a disagreement between the engines is visible. If DAST reports something SAST marked safe, don't let either side win automatically: flag it for review with both sides' evidence. Either engine can be the wrong one. On the benchmark shop, DAST once reported XSS on a page served as `text/plain`, which SAST had correctly marked safe. Leave suppressed findings out of the reported list otherwise, so decoys don't count as false alarms.
 - **Show low-confidence findings only if DAST confirms them.** In a sample checked by hand, high confidence was right 10 times out of 10, medium 4 of 7, and low 0 of 7. The sample is small, but the gap is wide.
 - **Match on `cwe_family`, then route, then parameter.** Two bugs on one page with the same CWE are told apart by parameter.
 - **`selector` matters.** On `/index.php?page=a.php` and `/index.php?page=b.php`, the path alone says nothing.

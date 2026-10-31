@@ -99,6 +99,35 @@ def html_context(prefix: str) -> str:
     return "attr_quoted"
 
 
+class RequestRole:
+    """Marks a value as a framework's request object, recognised by its role and
+    not by which library it comes from. `location` narrows it, as `->query` does.
+    `guessed` means only the name suggested this, so findings rank lower."""
+    __slots__ = ("location", "guessed")
+
+    def __init__(self, location=None, guessed=False):
+        self.location, self.guessed = location, guessed
+
+    def __repr__(self):
+        return f"role:{self.location}:{self.guessed}"
+
+
+class ClosureRef:
+    """A closure and what it captured, so it can be run again with real arguments."""
+    __slots__ = ("node", "env", "sf", "func", "cls", "fd")
+
+    def __init__(self, node, env, sf, func, cls, fd):
+        self.node, self.env, self.sf, self.func, self.cls, self.fd = node, env, sf, func, cls, fd
+
+
+class TemplateRef:
+    """The result of rendering a template, so `->with('name', $value)` can add to it."""
+    __slots__ = ("names",)
+
+    def __init__(self, names):
+        self.names = names
+
+
 class Val:
     """Possible value of an expression. `strs` holds known text, with `*` for unknown parts."""
     __slots__ = ("taints", "strs", "fields", "cls", "tables", "selector", "origin", "closure", "parts")
@@ -155,7 +184,8 @@ class Val:
 
     def sig(self):
         field_sig = tuple(sorted((k, v.sig()) for k, v in self.fields.items())) if self.fields else ()
-        return (tuple(sorted(_key_text(key) for key in self.taints)), self.cls, field_sig, tuple(sorted(self.strs)[:6]))
+        closure = repr(self.closure) if self.closure else None
+        return (tuple(sorted(_key_text(key) for key in self.taints)), self.cls, field_sig, tuple(sorted(self.strs)[:6]), closure)
 
 
 def _key_text(key) -> str:

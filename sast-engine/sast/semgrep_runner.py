@@ -10,12 +10,15 @@ import sys
 import tempfile
 
 RULES_DIR = os.path.join(os.path.dirname(__file__), "rules")
-PLACEHOLDER = re.compile(
-    r"^(|\*+|x+|changeme|change_me|your[_-].*|<.*>|\{.*\}|\$\{.*\}|%.*%|null|none|true|false|example|test|todo|placeholder|"
-    r"password|secret|username|user|localhost|root|xsd:\w+|string|int|bool)$", re.I)
+# Values that stand for a secret without being one. Weak values like "password" or "root" aren't here:
+# committing those as real credentials is exactly the bug.
+PLACEHOLDER = re.compile(r"^(|\*+|\.+|x{3,}|<.*>|\[.*\]|\{.*\}|\$\{.*\}|%.*%|your[_-].*|null|none|nil|true|false|todo|tbd|placeholder)$", re.I)
+# Values that describe a field's type or validation, as in schemas and form rules.
+SCHEMA_VALUE = re.compile(r"^(xsd:\w+|string|int|integer|bool|boolean|text|varchar|number|float|array|required|nullable|hidden)$"
+                          r"|^[a-z_]+(:[^|]*)?(\|[a-z_]+(:[^|]*)?)+$", re.I)
 # Finds the secret's name and value on a line of code.
 NAMED_VALUE = re.compile(
-    r"""(?:->\s*|[$]|\bconst\s+|\bdefine\s*\(\s*['"]|\[\s*['"]|['"])([\w-]+)['"]?\s*\]?\s*(?:={1,3}>?|,)\s*(['"])(.*?)\2""", re.I)
+    r"""(?:->\s*|[$]|\bconst\s+|\bdefine\s*\(\s*['"]|\[\s*['"]|['"])([\w-]+)['"]?\s*\]?\s*(={1,3}>?|,)\s*(['"])(.*?)\3""", re.I)
 # Names that talk about a secret without holding one.
 NOT_A_SECRET_NAME = re.compile(
     r"(field|name|column|col|header|label|param|input|attr|attribute|type|url|uri|path|file|dir|id|policy|length|len|min|max|"
@@ -74,10 +77,29 @@ def looks_like_real_secret(line: str) -> bool:
             break
     if match is None:
         return True
-    name, value = match.group(1), match.group(3).strip()
-    if NOT_A_SECRET_NAME.search(name) or PLACEHOLDER.match(value) or value.count(" ") >= 2:
+    return is_secret_value(match.group(1), match.group(4).strip(), mapping=match.group(2) == "=>")
+
+
+def is_secret_value(name: str, value: str, mapping: bool = False) -> bool:
+    """Judges one name and value. `mapping` means an array entry, where `'password' => 'password'`
+    usually maps a field to its own name."""
+    if NOT_A_SECRET_NAME.search(name) or PLACEHOLDER.match(value) or SCHEMA_VALUE.match(value) or value.count(" ") >= 2:
         return False
+    if mapping and value.lower() == name.lower():
+        return False
+    if re.search(r"public", name, re.I):
+        return False  # public keys and tokens are meant to be seen
     if STRONG_NAME.search(name):
         return True
     # "token" alone is a common word, so its value has to look machine-made.
     return len(value) >= 12 and bool(re.search(r"\d", value)) and bool(re.search(r"[A-Za-z]", value)) and " " not in value and ":" not in value
+
+
+ENV_FALLBACK = re.compile(r"""(?:getenv|env)\s*\(\s*['"]([\w.-]+)['"]""", re.I)
+
+
+def fallback_is_secret(line: str) -> bool:
+    """For `getenv('DB_PASSWORD') ?: 'value'` and `env('DB_PASSWORD', 'value')`: the secret is the last string."""
+    name = ENV_FALLBACK.search(line)
+    values = re.findall(r"""['"]([^'"]*)['"]""", line)
+    return bool(name and values) and is_secret_value(name.group(1), values[-1])

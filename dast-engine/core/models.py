@@ -6,6 +6,7 @@ These mirror the finding schema in results/schema.json so every module
 from __future__ import annotations
 
 import hashlib
+import re
 import time
 from dataclasses import dataclass, field
 from enum import Enum
@@ -51,9 +52,22 @@ class InjectionPoint:
     body_template: Optional[dict] = None
     headers: dict = field(default_factory=dict)
     cookies: dict = field(default_factory=dict)
+    # The query value that picks this page on a shared path, from SAST's route
+    # map ("action=view" on /shop.php). Also present in `url`.
+    selector: Optional[str] = None
+    # Fields a request needs in the *other* place from the one being tested:
+    # a POST form can read one value from the URL and another from the body.
+    query_extras: dict = field(default_factory=dict)
+    body_extras: dict = field(default_factory=dict)
+
+    @property
+    def baseline_url(self) -> str:
+        """The URL with a harmless value in place of a path placeholder."""
+        return re.sub(r"\{\w+\}", self.seed_value or "1", self.url)
 
     def key(self) -> str:
-        return f"{self.method}|{self.route_template}|{self.param}|{self.param_location.value}"
+        base = f"{self.method}|{self.route_template}|{self.param}|{self.param_location.value}"
+        return f"{base}|{self.selector}" if self.selector else base
 
 
 @dataclass
@@ -94,6 +108,7 @@ class Finding:
     source: str = "dast"
     tool: str = "dast-engine"
     timestamp: float = field(default_factory=time.time)
+    selector: Optional[str] = None
 
     @property
     def finding_id(self) -> str:
@@ -122,6 +137,10 @@ class Finding:
         ]
         if self.scope == "app":
             parts.append(self.title)
+        # Only when present, so ids of findings without one don't change. Two
+        # selectors on one path are different pages, so they mustn't collide.
+        if self.selector:
+            parts.append(self.selector)
         basis = "|".join(parts)
         return hashlib.sha1(basis.encode("utf-8")).hexdigest()
 
@@ -137,6 +156,7 @@ class Finding:
             "method": self.method,
             "url": self.url,
             "route_template": self.route_template,
+            "selector": self.selector,
             "param": self.param,
             "param_location": self.param_location,
             "payload": self.payload,

@@ -98,3 +98,9 @@ def test_write_output_also_writes_the_common_file(tmp_path):
     # the native file is unchanged
     native = json.loads((tmp_path / "dast_results.json").read_text(encoding="utf-8"))
     assert native["findings"][0]["finding_id"] == sqli().finding_id
+
+
+def test_selector_is_exported_on_the_route():
+    routes = finding_to_common(sqli(selector="action=view").to_dict())["routes"]
+    assert routes[0]["selector"] == "action=view"
+    assert finding_to_common(sqli().to_dict())["routes"][0]["selector"] is None

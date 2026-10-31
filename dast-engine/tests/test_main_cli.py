@@ -1,3 +1,4 @@
+import json
 from unittest.mock import AsyncMock, patch
 
 import yaml
@@ -59,3 +60,26 @@ def test_default_output_path_when_nothing_specified():
 
     assert result.exit_code == 0, result.output
     assert captured_cfg["output_path"] == "output/dast_results.json"
+
+
+def run_verify(target, *extra):
+    result = CliRunner().invoke(main.cli, ["verify", "--target", target, "--cwe", "CWE-89", "--param", "id", *extra])
+    assert result.exit_code == 0, result.output
+    return json.loads(result.output.splitlines()[-1])
+
+
+def test_verify_reports_a_finding_that_reproduces(vuln_app_url):
+    outcome = run_verify(vuln_app_url, "--route", "/sqli")
+    assert outcome["reproduced"] is True
+    assert outcome["finding"]["cwe"] == "CWE-89"
+
+
+def test_verify_reports_a_finding_that_doesnt(vuln_app_url):
+    assert run_verify(vuln_app_url, "--route", "/sqli_decoy") == {"reproduced": False, "finding": None}
+
+
+def test_verify_passes_the_selector_through(vuln_app_url):
+    assert run_verify(vuln_app_url, "--route", "/dispatch")["reproduced"] is False
+    outcome = run_verify(vuln_app_url, "--route", "/dispatch", "--selector", "action=view")
+    assert outcome["reproduced"] is True
+    assert outcome["finding"]["selector"] == "action=view"
