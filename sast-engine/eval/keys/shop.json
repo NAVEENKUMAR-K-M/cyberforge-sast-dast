@@ -1,0 +1,63 @@
+{
+  "app": "benchmarks/shop",
+  "note": "Written before tuning the engine, by the same team that wrote it, so read these scores as a best case. pairs are findable by SAST and DAST; code_only by SAST only; runtime_only by DAST only.",
+  "pairs": [
+    {"id": "S1", "cwe": 89, "file": "app/public/api/orders.php", "route": "/api/orders.php", "param": "id"},
+    {"id": "S2", "cwe": 89, "file": "app/lib/repositories.php", "route": "/search.php", "param": "q", "hard": "wrapper source, static method in another file"},
+    {"id": "S3", "cwe": 89, "file": "app/public/shop.php", "lines": [7, 9], "route": "/shop.php", "selector": "action=view", "param": "pid", "hard": "two bugs in one handler"},
+    {"id": "S4", "cwe": 89, "file": "app/public/shop.php", "lines": [13, 15], "route": "/shop.php", "selector": "action=track", "param": "code", "hard": "two bugs in one handler"},
+    {"id": "S5", "cwe": 89, "file": "app/public/account/orders.php", "route": "/account/orders.php", "param": "sort", "hard": "addslashes on an unquoted value, sink in a helper"},
+    {"id": "S6", "cwe": 89, "file": "app/public/login.php", "route": "/login.php", "param": "username", "hard": "sprintf, sink in a helper"},
+    {"id": "X1", "cwe": 79, "file": "app/templates/results.php", "route": "/search.php", "param": "q", "hard": "template with extract()"},
+    {"id": "X2", "cwe": 79, "file": "app/templates/product.php", "route": "/product.php", "param": "body", "stored": true, "hard": "stored through bound parameters, written by /reviews.php"},
+    {"id": "X3", "cwe": 79, "file": "app/public/contact.php", "route": "/contact.php", "param": "name", "hard": "ENT_NOQUOTES inside a single-quoted attribute"},
+    {"id": "X4", "cwe": 79, "file": "app/public/gallery.php", "route": "/gallery.php", "param": "img", "hard": "escaped value in an unquoted attribute"},
+    {"id": "C1", "cwe": 78, "file": "app/public/tools/ping.php", "route": "/tools/ping.php", "param": "host"},
+    {"id": "C2", "cwe": 78, "file": "app/public/tools/lookup.php", "route": "/tools/lookup.php", "param": "domain", "hard": "sink in a helper"},
+    {"id": "C3", "cwe": 78, "file": "app/public/api/convert.php", "route": "/api/convert.php", "param": "format"},
+    {"id": "C4", "cwe": 78, "file": "app/public/admin/backup.php", "route": "/admin/backup.php", "param": "label", "hard": "backticks with a blacklist filter"},
+    {"id": "P1", "cwe": 22, "file": "app/public/download.php", "route": "/download.php", "param": "file"},
+    {"id": "P2", "cwe": 22, "file": "app/public/page.php", "route": "/page.php", "param": "name", "hard": "include with a fixed suffix"},
+    {"id": "P3", "cwe": 22, "file": "app/public/invoice.php", "route": "/invoice.php", "param": "id", "hard": "blacklist filter"},
+    {"id": "P4", "cwe": 22, "file": "app/lib/repositories.php", "route": "/attachment.php", "param": "name", "hard": "static method in another file, class constant prefix"},
+    {"id": "R1", "cwe": 601, "file": "app/public/go.php", "route": "/go.php", "param": "url"},
+    {"id": "R2", "cwe": 601, "file": "app/public/logout.php", "route": "/logout.php", "param": "next"},
+    {"id": "R3", "cwe": 601, "file": "app/lib/http.php", "route": "/cart/checkout.php", "param": "back", "hard": "shared helper, also reached from /login.php"},
+    {"id": "R4", "cwe": 601, "file": "app/public/lang.php", "route": "/lang.php", "param": "back", "hard": "substring check isn't protection"}
+  ],
+  "code_only": [
+    {"id": "K1", "cwe": 798, "file": "app/lib/config.php", "lines": [3, 3]},
+    {"id": "K2", "cwe": 798, "file": "app/lib/config.php", "lines": [5, 5]},
+    {"id": "K3", "cwe": 798, "file": "app/lib/mailer.php"},
+    {"id": "K4", "cwe": 798, "file": "app/public/admin/login.php"},
+    {"id": "K5", "cwe": 798, "file": "app/lib/payments.php"},
+    {"id": "K6", "cwe": 327, "file": "app/public/login.php"},
+    {"id": "K7", "cwe": 327, "file": "app/public/register.php"},
+    {"id": "K8", "cwe": 330, "file": "app/public/reset.php"},
+    {"id": "K9", "cwe": 489, "file": "app/lib/bootstrap.php"},
+    {"id": "K10", "cwe": 502, "file": "app/public/cart/index.php"}
+  ],
+  "runtime_only": [
+    {"id": "H1", "note": "no Content-Security-Policy header"},
+    {"id": "H2", "note": "no X-Frame-Options header"},
+    {"id": "H3", "note": "session cookie without HttpOnly or SameSite"},
+    {"id": "H4", "note": "PHP version exposed in X-Powered-By"},
+    {"id": "H5", "note": "Apache version exposed in Server"},
+    {"id": "H6", "note": "phpinfo page served at /debug.php"}
+  ],
+  "decoys": [
+    {"id": "D1", "cwe": 89, "file": "app/lib/repositories.php", "lines": [8, 11], "why": "bound parameter"},
+    {"id": "D2", "cwe": 89, "file": "app/public/category.php", "why": "int cast"},
+    {"id": "D3", "cwe": 79, "file": "app/public/profile.php", "why": "escaped in HTML body"},
+    {"id": "D4", "cwe": 78, "file": "app/public/tools/dns.php", "why": "escapeshellarg"},
+    {"id": "D5", "cwe": 22, "file": "app/public/report.php", "why": "basename"},
+    {"id": "D6", "cwe": 601, "file": "app/public/welcome.php", "why": "allowlist, reset on failure"},
+    {"id": "D7", "cwe": 79, "file": "app/public/export.php", "why": "text/plain with nosniff"},
+    {"id": "D8", "cwe": 89, "file": "app/public/products.php", "why": "input only picks from a fixed column map"},
+    {"id": "D9", "cwe": 89, "file": "app/lib/legacy.php", "why": "function nothing calls"},
+    {"id": "D10", "cwe": 798, "file": "app/lib/forms.php", "why": "names that look secret, values that aren't"},
+    {"id": "D11", "cwe": 798, "file": "app/lib/config.php", "lines": [6, 7], "why": "values come from the environment"},
+    {"id": "D12", "cwe": 79, "file": "app/public/invoice.php", "why": "output is escaped"},
+    {"id": "D13", "cwe": 79, "file": "app/public/tools/ping.php", "why": "output is escaped"}
+  ]
+}

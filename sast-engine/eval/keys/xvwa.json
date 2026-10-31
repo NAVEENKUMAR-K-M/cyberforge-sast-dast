@@ -1,0 +1,23 @@
+{
+  "app": "benchmarks/external/xvwa",
+  "note": "Holdout. Labelled from the source before the tool ever ran on this app.",
+  "pairs": [
+    {"id": "sqli-item", "cwe": 89, "file": "vulnerabilities/sqli/home.php", "lines": [55, 58], "route": "/vulnerabilities/sqli/index.php", "param": "item"},
+    {"id": "sqli-search", "cwe": 89, "file": "vulnerabilities/sqli/home.php", "lines": [59, 62], "route": "/vulnerabilities/sqli/index.php", "param": "search"},
+    {"id": "sqli-blind", "cwe": 89, "file": "vulnerabilities/sqli_blind/home.php", "route": "/vulnerabilities/sqli_blind/index.php", "param": "item"},
+    {"id": "xss-reflected", "cwe": 79, "file": "vulnerabilities/reflected_xss/home.php", "route": "/vulnerabilities/reflected_xss/index.php", "param": "item"},
+    {"id": "xss-stored", "cwe": 79, "file": "vulnerabilities/stored_xss/home.php", "route": "/vulnerabilities/stored_xss/index.php", "param": "msg", "stored": true, "hard": "stored through bound parameters"},
+    {"id": "cmd", "cwe": 78, "file": "vulnerabilities/cmdi/home.php", "route": "/vulnerabilities/cmdi/index.php", "param": "target"},
+    {"id": "file-include", "cwe": 22, "file": "vulnerabilities/fi/home.php", "route": "/vulnerabilities/fi/index.php", "param": "file"},
+    {"id": "redirect-page", "cwe": 601, "file": "vulnerabilities/redirect/redirect.php", "route": "/vulnerabilities/redirect/redirect.php", "param": "forward"},
+    {"id": "redirect-home", "cwe": 601, "file": "vulnerabilities/redirect/home.php", "route": "/vulnerabilities/redirect/index.php", "param": "forward"}
+  ],
+  "code_only": [
+    {"id": "weak-hash-login", "cwe": 327, "file": "login.php"}
+  ],
+  "runtime_only": [],
+  "decoys": [
+    {"id": "login-sql", "cwe": 89, "file": "login.php", "why": "bound parameters"},
+    {"id": "stored-sql", "cwe": 89, "file": "vulnerabilities/stored_xss/home.php", "why": "bound parameters"}
+  ]
+}

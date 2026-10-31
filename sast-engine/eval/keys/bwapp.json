@@ -1,0 +1,27 @@
+{
+  "app": "benchmarks/external/bwapp",
+  "note": "Holdout. Labelled from the source before the tool ever ran on this app. Sanitising depends on the security_level cookie, and level 0 uses no check, so these are all reachable bugs.",
+  "pairs": [
+    {"id": "sqli-1", "cwe": 89, "file": "app/sqli_1.php", "route": "/sqli_1.php", "param": "title", "hard": "local wrapper that switches on a cookie"},
+    {"id": "sqli-2", "cwe": 89, "file": "app/sqli_2.php", "route": "/sqli_2.php", "param": "movie"},
+    {"id": "sqli-16", "cwe": 89, "file": "app/sqli_16.php", "route": "/sqli_16.php", "param": "login"},
+    {"id": "xss-get", "cwe": 79, "file": "app/xss_get.php", "route": "/xss_get.php", "param": "firstname"},
+    {"id": "xss-post", "cwe": 79, "file": "app/xss_post.php", "route": "/xss_post.php", "param": "firstname"},
+    {"id": "xss-stored", "cwe": 79, "file": "app/xss_stored_1.php", "route": "/xss_stored_1.php", "param": "entry", "stored": true, "hard": "stored, read through object properties"},
+    {"id": "cmd-1", "cwe": 78, "file": "app/commandi.php", "route": "/commandi.php", "param": "target"},
+    {"id": "cmd-blind", "cwe": 78, "file": "app/commandi_blind.php", "route": "/commandi_blind.php", "param": "target"},
+    {"id": "include", "cwe": 22, "file": "app/rlfi.php", "route": "/rlfi.php", "param": "language"},
+    {"id": "traversal", "cwe": 22, "file": "app/directory_traversal_1.php", "route": "/directory_traversal_1.php", "param": "page", "hard": "sink in a local function"},
+    {"id": "redirect", "cwe": 601, "file": "app/unvalidated_redir_fwd_1.php", "route": "/unvalidated_redir_fwd_1.php", "param": "url"}
+  ],
+  "code_only": [
+    {"id": "secret-settings", "cwe": 798, "file": "app/admin/settings.php"},
+    {"id": "weak-hash-login", "cwe": 327, "file": "app/login.php"},
+    {"id": "weak-hash-new-user", "cwe": 327, "file": "app/user_new.php"}
+  ],
+  "runtime_only": [],
+  "decoys": [
+    {"id": "sqli-2-ps", "cwe": 89, "file": "app/sqli_2-ps.php", "why": "bound parameter"},
+    {"id": "sqli-13-ps", "cwe": 89, "file": "app/sqli_13-ps.php", "why": "bound parameter"}
+  ]
+}

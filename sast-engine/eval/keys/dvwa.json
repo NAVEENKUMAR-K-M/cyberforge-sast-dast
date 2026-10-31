@@ -1,0 +1,38 @@
+{
+  "app": "benchmarks/external/dvwa",
+  "note": "Hand-labelled from the source for the modules in the PRD's type list; not every DVWA bug is listed. Levels low, medium and high are bugs; impossible is a decoy.",
+  "pairs": [
+    {"id": "sqli-low", "cwe": 89, "file": "vulnerabilities/sqli/source/low.php"},
+    {"id": "sqli-medium", "cwe": 89, "file": "vulnerabilities/sqli/source/medium.php", "hard": "escaping on an unquoted value"},
+    {"id": "sqli-high", "cwe": 89, "file": "vulnerabilities/sqli/source/high.php", "hard": "input arrives through the session"},
+    {"id": "sqlib-low", "cwe": 89, "file": "vulnerabilities/sqli_blind/source/low.php"},
+    {"id": "sqlib-medium", "cwe": 89, "file": "vulnerabilities/sqli_blind/source/medium.php"},
+    {"id": "sqlib-high", "cwe": 89, "file": "vulnerabilities/sqli_blind/source/high.php", "hard": "input arrives through a cookie"},
+    {"id": "brute-low", "cwe": 89, "file": "vulnerabilities/brute/source/low.php"},
+    {"id": "xssr-low", "cwe": 79, "file": "vulnerabilities/xss_r/source/low.php", "hard": "echoed from another file"},
+    {"id": "xssr-medium", "cwe": 79, "file": "vulnerabilities/xss_r/source/medium.php"},
+    {"id": "xssr-high", "cwe": 79, "file": "vulnerabilities/xss_r/source/high.php"},
+    {"id": "xsss-stored", "cwe": 79, "file": "dvwa/includes/dvwaPage.inc.php", "stored": true, "hard": "stored, then read in a shared helper"},
+    {"id": "exec-low", "cwe": 78, "file": "vulnerabilities/exec/source/low.php"},
+    {"id": "exec-medium", "cwe": 78, "file": "vulnerabilities/exec/source/medium.php"},
+    {"id": "exec-high", "cwe": 78, "file": "vulnerabilities/exec/source/high.php"},
+    {"id": "fi-include", "cwe": 22, "file": "vulnerabilities/fi/index.php", "hard": "source and sink in different files"},
+    {"id": "redir-low", "cwe": 601, "file": "vulnerabilities/open_redirect/source/low.php"},
+    {"id": "redir-medium", "cwe": 601, "file": "vulnerabilities/open_redirect/source/medium.php"},
+    {"id": "redir-high", "cwe": 601, "file": "vulnerabilities/open_redirect/source/high.php"}
+  ],
+  "code_only": [],
+  "runtime_only": [],
+  "decoys": [
+    {"id": "sqli-imp", "cwe": 89, "file": "vulnerabilities/sqli/source/impossible.php", "why": "bound parameter and numeric check"},
+    {"id": "sqlib-imp", "cwe": 89, "file": "vulnerabilities/sqli_blind/source/impossible.php", "why": "bound parameter and numeric check"},
+    {"id": "brute-imp", "cwe": 89, "file": "vulnerabilities/brute/source/impossible.php", "why": "bound parameters"},
+    {"id": "xssr-imp", "cwe": 79, "file": "vulnerabilities/xss_r/source/impossible.php", "why": "htmlspecialchars in the body"},
+    {"id": "exec-imp", "cwe": 78, "file": "vulnerabilities/exec/source/impossible.php", "why": "each octet checked as numeric"},
+    {"id": "redir-imp", "cwe": 601, "file": "vulnerabilities/open_redirect/source/impossible.php", "why": "input only selects a fixed target"},
+    {"id": "xsss-low-sql", "cwe": 89, "file": "vulnerabilities/xss_s/source/low.php", "why": "escaped inside quotes"},
+    {"id": "xsss-med-sql", "cwe": 89, "file": "vulnerabilities/xss_s/source/medium.php", "why": "escaped inside quotes"},
+    {"id": "xsss-high-sql", "cwe": 89, "file": "vulnerabilities/xss_s/source/high.php", "why": "escaped inside quotes"},
+    {"id": "xsss-imp-sql", "cwe": 89, "file": "vulnerabilities/xss_s/source/impossible.php", "why": "bound parameters"}
+  ]
+}

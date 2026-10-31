@@ -1,0 +1,6 @@
+# Deliberately vulnerable. The port is bound to loopback so it can't be reached from the network.
+services:
+  shop:
+    build: .
+    ports:
+      - "127.0.0.1:8088:80"
