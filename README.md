@@ -12,15 +12,13 @@ We are winning this gang!
 
 ## Analyst interface
 
-The [web workspace](web/README.md) opens an existing `issues.json` in a minimal two-pane interface. It supports search and filters, evidence and code traces, coverage, conflicts, and exports. Scanning continues through the existing CLIs. After installing its dependencies and building the frontend:
+The [web workspace](web/README.md) runs local scans and opens the combined report. Choose DVWA, OWASP Juice Shop, or the bundled benchmark shop; select SAST and/or DAST; follow progress and logs; inspect findings, source routes, coverage, conflicts, and compare completed scans. It exports JSON, standalone HTML, and SARIF. SAST hints are enabled by default; full route-map expansion is optional because it can consume DAST's budget on larger apps. After installing its dependencies and building the frontend:
 
 ```sh
-web/.venv/bin/python -m web.server --report out/issues.json
-# Or view the clearly labelled, selected benchmark example:
 web/.venv/bin/python -m web.server --example
 ```
 
-Open **http://127.0.0.1:8000**. Reports stay local.
+Open **http://127.0.0.1:8000**. The selected app must already be running locally. The UI limits scan targets to `localhost` and `127.0.0.1`, and shows the full SAST + DAST + correlation elapsed time. SAST currently supports PHP; Juice Shop runs DAST only.
 
 ## Running everything on the benchmark shop
 

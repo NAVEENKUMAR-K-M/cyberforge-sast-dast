@@ -13,6 +13,10 @@ venv/
 # Correlator output (python -m correlator.cli --out out/issues.json)
 out/
 
+# Local vulnerability benchmark checkouts
+benchmarks/dvwa/
+benchmarks/juice-shop/
+
 # OS / editor noise
 .DS_Store
 Thumbs.db

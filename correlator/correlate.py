@@ -171,7 +171,11 @@ def _runtime_groups(findings: list, base: str):
     for f in findings:
         if f["scope"] == "endpoint" and f["params"] and f["routes"]:
             route = f["routes"][0]
-            key = (f["cwe_family"], _strip_base(route["path"], base), route["selector"] or "", f["params"][0]["name"])
+            param = f["params"][0]
+            # Keep locations separate. If a query finding matches a SAST input,
+            # a same-named body finding must not be attached as its evidence.
+            key = (f["cwe_family"], _strip_base(route["path"], base), route["selector"] or "",
+                   param["name"], param["location"])
             groups[key].append(f)
         else:
             others.append(f)

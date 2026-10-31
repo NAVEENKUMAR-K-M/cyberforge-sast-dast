@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowDownToLine,
   ArrowLeft,
@@ -11,6 +11,7 @@ import {
   FileText,
   ListFilter,
   LoaderCircle,
+  Play,
   RefreshCw,
   Search,
   X,
@@ -25,6 +26,7 @@ import {
   type Filters,
 } from "./lib";
 import type { Finding, Issue, Report, Workspace } from "./types";
+import { ScanLauncher } from "./ScanLauncher";
 
 const EMPTY_FILTERS: Filters = {
   search: "",
@@ -205,22 +207,63 @@ function CodeEvidence({ finding }: { finding: Finding }) {
   );
 }
 
+function fixGuidance(cwe: string): string {
+  const guidance: Record<string, string> = {
+    "CWE-89": "Use parameterized queries or prepared statements for every value. Avoid building SQL by concatenating user input.",
+    "CWE-79": "Encode output for its exact HTML, attribute, JavaScript, or URL context. Prefer safe DOM APIs and avoid inserting untrusted strings as markup.",
+    "CWE-78": "Pass arguments as an array to a process API instead of constructing a shell command. Validate values against a strict allowlist.",
+    "CWE-22": "Resolve paths against a fixed directory, canonicalize the result, and reject paths that escape that directory. Prefer allowlisted file identifiers.",
+    "CWE-601": "Use relative paths or an allowlist of trusted redirect destinations. Do not redirect directly to an unchecked user-provided URL.",
+    "CWE-798": "Remove the credential from source, rotate it, and load secrets from a protected secret store or environment-specific configuration.",
+  };
+  return guidance[cwe] ?? "Validate untrusted input at the boundary and use a safe API or encoding appropriate to the operation. Confirm the fix with a focused regression test.";
+}
+
 function IssueDetail({
   issue,
   report,
+  targetId,
+  targetUrl,
   onClose,
   onSelect,
 }: {
   issue: Issue;
   report: Report;
+  targetId: string | null;
+  targetUrl: string;
   onClose: () => void;
   onSelect: (id: string) => void;
 }) {
   const pane = useRef<HTMLElement>(null);
+  const [verifying, setVerifying] = useState(false);
+  const [verification, setVerification] = useState("");
   useEffect(() => {
     pane.current?.scrollTo(0, 0);
   }, [issue.issue_id]);
   const links = report.links.filter((link) => link.issue_id === issue.issue_id);
+  const remediation = fixGuidance(issue.cwe_family);
+  async function verifyAtRuntime() {
+    if (!targetId) return;
+    setVerifying(true);
+    setVerification("");
+    try {
+      const response = await fetch("/api/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_id: targetId, target_url: targetUrl, issue_id: issue.issue_id }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.detail || "Could not run verification.");
+      setVerification(body.reproduced
+        ? `Reproduced. The refreshed issue is ${body.issue?.label ?? "in the new report"}.`
+        : body.message || "The runtime probe did not reproduce this finding.");
+      if (body.reproduced) window.dispatchEvent(new Event("cyberforge-report-updated"));
+    } catch (error) {
+      setVerification(error instanceof Error ? error.message : "Could not run verification.");
+    } finally {
+      setVerifying(false);
+    }
+  }
   return (
     <aside className="detail-pane" ref={pane} aria-label="Finding details">
       <div className="detail-topline">
@@ -316,6 +359,17 @@ function IssueDetail({
           </p>
         )}
       </section>
+      {issue.label === "Code only" && targetId && issue.evidence.code.some((finding) => finding.routes.length && finding.params.length) && (
+        <section className="detail-section verify-action">
+          <h3>Try runtime verification</h3>
+          <p>Run a focused probe against the mapped local route. A reproduced result is merged into a refreshed correlated report.</p>
+          <Button size="small" disabled={verifying} onClick={() => void verifyAtRuntime()}>
+            {verifying ? <LoaderCircle className="spin" size={14} /> : <Play size={14} />}
+            {verifying ? "Verifying…" : "Verify this finding"}
+          </Button>
+          {!!verification && <p className="verification-result" role="status">{verification}</p>}
+        </section>
+      )}
       {!!issue.evidence.runtime.length && (
         <section className="detail-section">
           <h3>
@@ -336,6 +390,11 @@ function IssueDetail({
           ))}
         </section>
       )}
+      <section className="detail-section fix-guidance">
+        <h3>Fix guidance</h3>
+        <p>{remediation}</p>
+        <p className="footnote">Review the source and runtime evidence before applying a change. This guidance is general and does not patch the application.</p>
+      </section>
       <section className="detail-section secondary-details">
         <details className="disclosure">
           <summary>Risk assessment &amp; finding metadata</summary>
@@ -385,6 +444,53 @@ function IssueDetail({
         )}
       </section>
     </aside>
+  );
+}
+
+type RouteMapEntry = {
+  path: string;
+  aliases: string[];
+  selector: string | null;
+  methods: string[];
+  kind: string;
+  handler: { file: string; function: string; start_line: number; end_line: number };
+  params: { name: string; location: string }[];
+};
+
+function RoutesView({ scanId }: { scanId: string | null }) {
+  const [routes, setRoutes] = useState<RouteMapEntry[]>([]);
+  const [available, setAvailable] = useState(false);
+  const [filter, setFilter] = useState("");
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    setRoutes([]);
+    setAvailable(false);
+    if (!scanId) return;
+    setLoading(true);
+    void fetch(`/api/scans/${scanId}/routes`, { cache: "no-store" })
+      .then((response) => response.json())
+      .then((body) => {
+        setRoutes(body.routes ?? []);
+        setAvailable(body.available === true);
+      })
+      .finally(() => setLoading(false));
+  }, [scanId]);
+  const query = filter.trim().toLowerCase();
+  const shown = routes.filter((route) => `${route.path} ${route.selector ?? ""} ${route.handler.file} ${route.handler.function} ${route.methods.join(" ")} ${route.params.map((param) => param.name).join(" ")}`.toLowerCase().includes(query));
+  return (
+    <div className="routes-view">
+      <div className="section-intro"><h2>Source route map</h2><p>URL patterns discovered by SAST and the PHP file, function, and line range that handle them.</p></div>
+      <label className="route-search">Filter routes<input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Path, method, handler, parameter" /></label>
+      {loading && <p>Loading route map…</p>}
+      {!loading && !available && <div className="empty-list"><h3>No route map for this report</h3><p>Run SAST on a supported source folder to generate routes.json. Juice Shop currently supports DAST only.</p></div>}
+      {available && <>
+        <p className="route-count">Showing {shown.length} of {routes.length} routes</p>
+        <div className="route-table-wrap"><table className="route-table"><thead><tr><th>Route</th><th>Handler</th><th>Inputs</th></tr></thead><tbody>
+          {shown.map((route, index) => <tr key={`${route.path}-${route.selector}-${index}`}><td><span className="route-methods">{route.methods.join(", ")}</span><code>{route.path}{route.selector ? `?${route.selector}` : ""}</code>{!!route.aliases.length && <small>Aliases: {route.aliases.join(", ")}</small>}</td><td><code>{route.handler.file}:{route.handler.start_line}-{route.handler.end_line}</code><small>{route.handler.function} · {route.kind}</small></td><td>{route.params.length ? route.params.map((param) => <span className="route-param" key={`${param.name}-${param.location}`}><code>{param.name}</code> {param.location}</span>) : <span className="muted">No parameters recorded</span>}</td></tr>)}
+        </tbody></table></div>
+        {!shown.length && <p className="empty-list">No route matches that filter.</p>}
+      </>}
+    </div>
   );
 }
 
@@ -613,6 +719,8 @@ function ScanDetails({
         </dd>
         <dt>File updated</dt>
         <dd>{new Date(data.scan.modified_at).toLocaleString()}</dd>
+        <dt>Total run time</dt>
+        <dd>{data.scan.elapsed_seconds == null ? "Not recorded" : `${data.scan.elapsed_seconds.toFixed(1)} seconds (SAST + DAST + correlation)`}</dd>
         <dt>Format</dt>
         <dd>{data.report.schema_version}</dd>
         <dt>Source input</dt>
@@ -636,7 +744,7 @@ export default function App() {
   const [data, setData] = useState<Workspace | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<"findings" | "coverage">("findings");
+  const [view, setView] = useState<"findings" | "routes" | "coverage">("findings");
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [review, setReview] = useState(false);
   const [selected, setSelected] = useState(() => window.location.hash.slice(1));
@@ -647,7 +755,7 @@ export default function App() {
   const search = useRef<HTMLInputElement>(null);
   const table = useRef<HTMLTableElement>(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetch("/api/report", { cache: "no-store" });
@@ -660,7 +768,6 @@ export default function App() {
         );
       setData(value);
       if (
-        !data &&
         value.report.issues.some(
           (item: Issue) =>
             item.issue_id === window.location.hash.slice(1) && !item.reportable,
@@ -678,10 +785,15 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
   useEffect(() => {
     void load();
-  }, []);
+  }, [load]);
+  useEffect(() => {
+    const refresh = () => void load();
+    window.addEventListener("cyberforge-report-updated", refresh);
+    return () => window.removeEventListener("cyberforge-report-updated", refresh);
+  }, [load]);
   useEffect(() => {
     const hashChange = () => {
       setSelected(window.location.hash.slice(1));
@@ -716,7 +828,7 @@ export default function App() {
 
   if (!data)
     return (
-      <div className="initial-screen">
+      <div className="initial-screen initial-with-scan">
         <div className="brand">
           <span className="brand-mark" />
           CyberForge
@@ -744,6 +856,7 @@ export default function App() {
             </>
           )}
         </div>
+        <ScanLauncher onReportReady={() => void load()} />
       </div>
     );
   const status = scanStatus(data);
@@ -787,6 +900,7 @@ export default function App() {
           </Button>
         </div>
       </header>
+      <ScanLauncher onReportReady={() => void load()} />
       <main className="main-content">
         <div className="page-heading">
           <div>
@@ -810,19 +924,22 @@ export default function App() {
               <a href="/api/export/html" download>
                 Standalone report<span>.html</span>
               </a>
+            <a href="/api/export/sarif" download>
+              SARIF findings<span>.sarif.json</span>
+            </a>
             </div>
           </details>
         </div>
         <nav className="view-nav" aria-label="Report views">
           <div className="tabs">
-            {(["findings", "coverage"] as const).map((tab) => (
+            {(["findings", "routes", "coverage"] as const).map((tab) => (
               <button
                 key={tab}
                 aria-current={view === tab ? "page" : undefined}
                 className={view === tab ? "active" : ""}
                 onClick={() => setView(tab)}
               >
-                {tab === "findings" ? "Findings" : "Coverage"}
+                {tab === "findings" ? "Findings" : tab === "routes" ? "Routes" : "Coverage"}
                 {tab === "findings" && <span>{reportable.length}</span>}
               </button>
             ))}
@@ -848,7 +965,9 @@ export default function App() {
             </button>
           </div>
         )}
-        {view === "coverage" ? (
+        {view === "routes" ? (
+          <RoutesView scanId={data.scan.scan_id ?? null} />
+        ) : view === "coverage" ? (
           <Coverage
             data={data}
             onShowHeld={() => {
@@ -1163,6 +1282,8 @@ export default function App() {
                   <IssueDetail
                     issue={issue}
                     report={data.report}
+                    targetId={data.scan.target_id ?? null}
+                    targetUrl={data.scan.target}
                     onClose={() => setMobileDetail(false)}
                     onSelect={inspectCandidate}
                   />

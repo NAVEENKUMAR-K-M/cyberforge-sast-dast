@@ -27,8 +27,13 @@ STRONG_NAME = re.compile(r"pass|pwd|secret|api_?key|auth_?key|access_?key|privat
 
 
 def _binary():
-    beside_python = os.path.join(os.path.dirname(sys.executable), "semgrep")
-    return beside_python if os.path.exists(beside_python) else shutil.which("semgrep")
+    executable_dir = os.path.dirname(sys.executable)
+    names = ("semgrep.exe", "semgrep.cmd", "semgrep") if os.name == "nt" else ("semgrep",)
+    for name in names:
+        beside_python = os.path.join(executable_dir, name)
+        if os.path.isfile(beside_python):
+            return beside_python
+    return shutil.which("semgrep")
 
 
 def run_semgrep(source_root: str, rule_file: str, excludes, extra_files=(), timeout=180) -> tuple[list, str | None]:

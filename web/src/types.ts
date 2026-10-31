@@ -107,5 +107,8 @@ export type Workspace = {
     example: boolean;
     stats: { sast: Stats; dast: Stats };
     notes: string[];
+    scan_id?: string | null;
+    target_id?: string | null;
+    elapsed_seconds?: number | null;
   };
 };
