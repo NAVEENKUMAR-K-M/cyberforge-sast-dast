@@ -21,7 +21,8 @@
       "properties": {
         "name": {"type": "string"},
         "location": {"enum": ["query", "body", "json", "any", "cookie", "header", "path", "file", "session", "unknown"]},
-        "value": {"type": "string"}
+        "value": {"type": "string"},
+        "type": {"type": "string", "description": "validated: the framework parses this value as a number, date or similar before the code sees it, so text can't be injected through it"}
       }
     },
     "route_ref": {

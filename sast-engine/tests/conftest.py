@@ -23,6 +23,21 @@ def scan(tmp_path):
     return run
 
 
+@pytest.fixture
+def py_scan(tmp_path):
+    """Writes Python files to a folder and scans them. Keys are paths, values are source."""
+    from sast.lang.python.adapter import PythonAdapter
+
+    def run(files, semgrep=False, **options):
+        for rel, source in files.items():
+            path = tmp_path / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(source)
+        result = PythonAdapter().scan(str(tmp_path), ScanOptions(use_semgrep=semgrep, **options))
+        return json.loads(json.dumps({"routes": result.routes, "findings": result.findings, "stats": result.stats}))
+    return run
+
+
 def open_findings(result, cwe=None):
     return [f for f in result["findings"] if f["status"] == "open" and (cwe is None or f["cwe_family"] == f"CWE-{cwe}")]
 

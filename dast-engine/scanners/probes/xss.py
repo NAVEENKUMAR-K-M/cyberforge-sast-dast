@@ -83,12 +83,14 @@ class XssProbe(Probe):
             return []
 
         marker = random_marker()
+        reflected = False
         for template in self._payloads.get("marker_payloads", []):
             payload = template.format(marker=marker)
             url, kwargs = build_request(point, payload)
             resp = await rm.send(point.method, url, **kwargs)
             if resp is None or not _renders_as_markup(resp):
                 continue
+            reflected = reflected or marker in resp.text
             context = _classify_context(resp.text, payload)
             if context:
                 confidence = Confidence.FIRM
@@ -109,7 +111,36 @@ class XssProbe(Probe):
                         tool="dast-engine",
                     )
                 ]
+        if reflected and self._payloads.get("unquoted_attribute_payload"):
+            found = await self._unquoted_attribute(rm, point, marker)
+            if found:
+                return [found]
         return []
+
+    async def _unquoted_attribute(self, rm: RequestManager, point: InjectionPoint, marker: str) -> Finding | None:
+        payload = self._payloads["unquoted_attribute_payload"].format(marker=marker)
+        url, kwargs = build_request(point, payload)
+        resp = await rm.send(point.method, url, **kwargs)
+        if resp is None or not _renders_as_markup(resp):
+            return None
+        for hit in re.finditer(re.escape(payload), resp.text):
+            if re.search(r"[a-zA-Z-]+\s*=\s*$", resp.text[max(0, hit.start() - 80): hit.start()]):
+                return Finding(
+                    cwe=self.cwe,
+                    title="Reflected Cross-Site Scripting (unquoted attribute context)",
+                    severity=Severity.HIGH,
+                    confidence=Confidence.FIRM,
+                    method=point.method,
+                    url=point.url,
+                    route_template=point.route_template,
+                    param=point.param,
+                    param_location=point.param_location.value if hasattr(point.param_location, "value") else point.param_location,
+                    payload=payload,
+                    technique="reflected-attribute_unquoted",
+                    evidence=Evidence(matched=marker, response_excerpt=resp.text[:300], probe_status=resp.status_code),
+                    tool="dast-engine",
+                )
+        return None
 
     async def verify(self, rm: RequestManager, method: str, url: str, route_template: str, param: str | None, param_location: str) -> Finding | None:
         from core.models import ParamLocation

@@ -7,7 +7,8 @@ import re
 from sast.semgrep_runner import STRONG_NAME, is_secret_value
 
 CONFIG_EXTS = {".ini", ".conf", ".cnf", ".config", ".yml", ".yaml", ".json", ".xml", ".toml", ".properties"}
-SKIPPED_FILES = {"composer.lock", "package-lock.json", "yarn.lock", "composer.json", "package.json"}
+SKIPPED_FILES = {"composer.lock", "package-lock.json", "yarn.lock", "composer.json", "package.json", "pipfile.lock",
+                 "poetry.lock"}
 MAX_BYTES = 256_000
 MAX_LINE = 500
 

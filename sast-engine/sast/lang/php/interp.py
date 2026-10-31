@@ -1567,9 +1567,15 @@ class Interpreter:
         confidence because the code doing the work isn't visible."""
         if name in rules.LOGGING_CALLS:
             return None
-        for arg in args:
+        for position, arg in enumerate(args):
+            if arg.closure is ROWS:
+                continue  # what a query returned, not a query: it only keeps the SQL text it came from
             if any(rules.SQL_STATEMENT.match(text) for text in arg.strs):
                 result = self._sql_sink(name, arg, node, fr, penalty=1)
+                # DB::insert($sql, [$a, $b]) hands its values over as a list. They can't inject, but they are stored.
+                bindings = next((a for a in args[position + 1:] if a.fields), None)
+                if bindings is not None:
+                    self._bound(name, result, union(*bindings.fields.values()), node, fr, list(bindings.fields.items()))
                 rows = self._fetch(result, node, fr)
                 return Val(rows.taints, result.strs, rows.fields, tables=result.tables, closure=rows.closure)
         return None
@@ -1669,7 +1675,11 @@ class Interpreter:
         if lowered in rules.SINK_METHODS:
             cwe, index = rules.SINK_METHODS[lowered]
             target = args[index] if len(args) > index else EMPTY
-            return self._sql_sink(lowered, target, node, fr)
+            if cwe == 89:
+                return self._sql_sink(lowered, target, node, fr)
+            if target.tainted:
+                self.sink(cwe, lowered, target, node, fr)
+            return EMPTY
         # Before binding and fetching: `$db->execute("UPDATE ..." . $x)` runs SQL it was handed.
         statement = self._sql_call(lowered, args, node, fr)
         if statement is not None:

@@ -1,0 +1,9 @@
+<!doctype html>
+<html><head><title>New note</title></head>
+<body>
+<form method="post" action="/notes/new/">
+  {% csrf_token %}
+  <textarea name="text"></textarea>
+  <button>Save</button>
+</form>
+</body></html>

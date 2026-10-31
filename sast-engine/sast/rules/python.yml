@@ -1,0 +1,113 @@
+# Pattern rules for bugs that don't need taint tracking. Flow bugs live in sast/lang/python/taint.py.
+rules:
+  - id: secret-assign
+    languages: [python]
+    severity: ERROR
+    message: Hard-coded secret assigned to a variable
+    metadata: {cwe: 798, secret: true}
+    patterns:
+      - pattern: $VAR = "..."
+      - metavariable-regex:
+          metavariable: $VAR
+          regex: (?i).*(pass(word|wd|phrase)?|pwd|secret|api_?key|auth_?key|access_?key|private_?key|token|credential).*
+  - id: secret-attribute
+    languages: [python]
+    severity: ERROR
+    message: Hard-coded secret set on an object
+    metadata: {cwe: 798, secret: true}
+    patterns:
+      - pattern: $OBJ.$ATTR = "..."
+      - metavariable-regex:
+          metavariable: $ATTR
+          regex: (?i).*(pass(word|wd|phrase)?|pwd|secret|api_?key|auth_?key|access_?key|private_?key|token|credential).*
+  - id: secret-config-key
+    languages: [python]
+    severity: ERROR
+    message: Hard-coded secret in a configuration mapping
+    metadata: {cwe: 798, secret: true, machine_made: true}
+    patterns:
+      - pattern-either:
+          - pattern-regex: (?i)\[\s*['"][\w-]*(pass(word|wd)?|pwd|secret|api_?key|auth_?key|access_?key|private_?key|token)[\w-]*['"]\s*\]\s*=\s*['"][^'"]+['"]
+          - pattern-regex: (?i)['"][\w-]*(pass(word|wd)?|pwd|secret|api_?key|auth_?key|access_?key|private_?key|token)[\w-]*['"]\s*:\s*['"][^'"]+['"]
+  - id: secret-keyword-argument
+    languages: [python]
+    severity: ERROR
+    message: Hard-coded secret passed as an argument
+    metadata: {cwe: 798, secret: true}
+    patterns:
+      - pattern: $F(..., $K="...", ...)
+      - metavariable-regex:
+          metavariable: $K
+          regex: (?i).*(pass(word|wd|phrase)?|pwd|secret|api_?key|auth_?key|access_?key|private_?key|token|credential).*
+  - id: secret-compare
+    languages: [python]
+    severity: ERROR
+    message: Password compared with a hard-coded value
+    metadata: {cwe: 798, secret: true}
+    patterns:
+      - pattern-regex: (?i)\b\w*(pass(word|wd)?|pwd)\w*\s*==\s*['"][^'"]+['"]
+  - id: secret-env-fallback
+    languages: [python]
+    severity: ERROR
+    message: Hard-coded secret used as a fallback for an environment variable
+    metadata: {cwe: 798, secret: true, env_fallback: true}
+    pattern-either:
+      - pattern-regex: (?i)\b(os\.)?(getenv|environ\.get)\s*\(\s*['"][\w.-]*(pass(word|wd)?|pwd|secret|api_?key|auth_?key|access_?key|private_?key|token)[\w.-]*['"]\s*,\s*['"][^'"]+['"]
+  - id: secret-known-format
+    languages: [python]
+    severity: ERROR
+    message: Credential in a known key format
+    metadata: {cwe: 798, secret: true, known_format: true}
+    pattern-regex: (AKIA[0-9A-Z]{16}|sk_live_[0-9a-zA-Z]{16,}|ghp_[0-9a-zA-Z]{36}|xox[bp]-[0-9a-zA-Z-]{20,}|-----BEGIN (RSA |EC )?PRIVATE KEY-----)
+  - id: secret-connection-string
+    languages: [python]
+    severity: ERROR
+    message: Credentials inside a database or broker URL
+    metadata: {cwe: 798, secret: true, known_format: true}
+    pattern-regex: (?i)['"](postgres(ql)?|mysql(\+\w+)?|mongodb(\+srv)?|redis|amqp|mssql(\+\w+)?)://[^/\s:'"$%{}@]+:[^@\s'"$%{}]+@
+  - id: secret-signing-key
+    languages: [python]
+    severity: ERROR
+    message: Token signed or verified with a hard-coded key
+    # A key held in a constant is reported where it is defined, not again at every use.
+    options: {constant_propagation: false}
+    metadata: {cwe: 798, secret: true}
+    pattern-either:
+      - pattern: jwt.encode($P, "...", ...)
+      - pattern: jwt.decode($T, "...", ...)
+  - id: weak-password-hash
+    languages: [python]
+    severity: WARNING
+    message: Password hashed with a weak algorithm
+    metadata: {cwe: 328}
+    pattern-either:
+      - pattern-regex: (?i)hashlib\.(md5|sha1)\s*\([^)]*(pass|pwd)
+      - pattern-regex: (?i)hashlib\.new\s*\(\s*['"](md5|sha1)['"]\s*,[^)]*(pass|pwd)
+      - pattern-regex: (?i)\b(md5|sha1)\s*\([^)]*(pass|pwd)\w*[^)]*\)\.hexdigest
+  - id: insecure-random-token
+    languages: [python]
+    severity: WARNING
+    message: Security token built from a predictable random source
+    metadata: {cwe: 338}
+    patterns:
+      - pattern-either:
+          - pattern: $VAR = <... random.random(...) ...>
+          - pattern: $VAR = <... random.randint(...) ...>
+          - pattern: $VAR = <... random.randrange(...) ...>
+          - pattern: $VAR = <... random.choice(...) ...>
+          - pattern: $VAR = <... random.choices(...) ...>
+          - pattern: $VAR = <... random.getrandbits(...) ...>
+      - metavariable-regex:
+          metavariable: $VAR
+          regex: (?i).*(token|secret|nonce|session|reset|csrf|otp|api_?key|password|pin).*
+  - id: debug-enabled
+    languages: [python]
+    severity: INFO
+    message: Debug mode is switched on, which shows errors and can allow code execution
+    metadata: {cwe: 489}
+    pattern-either:
+      - pattern: $APP.run(..., debug=True, ...)
+      - pattern: $APP.debug = True
+      - pattern: FastAPI(..., debug=True, ...)
+      - pattern: DEBUG = True
+      - pattern: $APP.config["DEBUG"] = True

@@ -1,0 +1,31 @@
+# pyshop dev-target config. Start pyshop first:
+#   docker compose -f ../sast-engine/benchmarks/pyshop/docker-compose.yml up -d --build
+
+target: "http://127.0.0.1:8089"
+allowlist:
+  - "localhost"
+  - "127.0.0.1"
+
+deadline_seconds: 150
+report_reserve_seconds: 15
+start_rps: 25
+floor_rps: 5
+verify_tls: false
+max_pages: 200
+probe_concurrency: 4    # points probed at once; the rate limiter still bounds requests per second
+
+active_backend: python
+
+route_map_path: null
+hints_path: null
+output_path: "output/pyshop_results.json"
+
+auth:
+  enabled: false
+
+# pyshop's logout and reset only clear a cookie or set a throwaway token, and /auth/logout carries the
+# open-redirect bug the key expects, so the generic denylist entries for them are dropped here. Nothing
+# else in pyshop changes state beyond rows in its own SQLite file.
+denylist:
+  - "setup"
+  - "delete"

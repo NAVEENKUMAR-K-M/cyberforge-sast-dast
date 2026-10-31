@@ -1,0 +1,10 @@
+<!doctype html>
+<html><head><title>Notes</title></head>
+<body>
+<ul>
+{% for note in object_list %}
+  <li>{{ note.text|safe }}</li>
+{% endfor %}
+</ul>
+<a href="/notes/new/">Add a note</a>
+</body></html>

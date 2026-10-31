@@ -14,6 +14,7 @@ class Param:
     name: str
     location: str
     value: str | None = None
+    type: str | None = None  # "validated" when the framework parses the value before the code sees it
 
     def key(self):
         return (self.name, self.location, self.value)
@@ -22,6 +23,8 @@ class Param:
         out = {"name": self.name, "location": self.location}
         if self.value is not None:
             out["value"] = self.value
+        if self.type is not None:
+            out["type"] = self.type
         return out
 
 

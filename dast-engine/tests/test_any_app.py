@@ -358,6 +358,7 @@ async def test_hinted_points_are_tested_first(tmp_path):
     finally:
         await rm.aclose()
     assert probe.calls == [("c", True), ("a", False), ("b", False)]
+    assert set(coverage.pop("probe_seconds")) == {"recording"}  # how long each probe took, for the report
     assert coverage == {"points_tested": 3, "points_hinted": 1, "deadline_reached": False}
 
 

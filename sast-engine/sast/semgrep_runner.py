@@ -14,7 +14,8 @@ RULES_DIR = os.path.join(os.path.dirname(__file__), "rules")
 # committing those as real credentials is exactly the bug.
 PLACEHOLDER = re.compile(r"^(|\*+|\.+|x{3,}|<.*>|\[.*\]|\{.*\}|\$\{.*\}|%.*%|your[_-].*|null|none|nil|true|false|todo|tbd|placeholder)$", re.I)
 # Values that describe a field's type or validation, as in schemas and form rules.
-SCHEMA_VALUE = re.compile(r"^(xsd:\w+|string|int|integer|bool|boolean|text|varchar|number|float|array|required|nullable|hidden)$"
+SCHEMA_VALUE = re.compile(r"^(xsd:\w+|string|int|integer|bool|boolean|text|varchar|number|float|array|required|nullable|hidden"
+                          r"|hashed|encrypted(:\w+)?|datetime|date|timestamp|collection|object|json|real|double|decimal:\d+)$"
                           r"|^[a-z_]+(:[^|]*)?(\|[a-z_]+(:[^|]*)?)+$", re.I)
 # Finds the secret's name and value on a line of code.
 NAMED_VALUE = re.compile(
@@ -22,7 +23,8 @@ NAMED_VALUE = re.compile(
 # Names that talk about a secret without holding one.
 NOT_A_SECRET_NAME = re.compile(
     r"(field|name|column|col|header|label|param|input|attr|attribute|type|url|uri|path|file|dir|id|policy|length|len|min|max|"
-    r"hint|prompt|msg|message|error|regex|pattern|hash|algo|expiry|expires|ttl|lifetime|key_name|format)s?$", re.I)
+    r"hint|prompt|msg|message|error|regex|pattern|hash|algo|expiry|expires|ttl|lifetime|key_name|format|"
+    r"broker|table|driver|provider|guard|connection|store|disk|channel|mailer|scheme|encoding|method|mode|level|cast)s?$", re.I)
 STRONG_NAME = re.compile(r"pass|pwd|secret|api_?key|auth_?key|access_?key|private_?key|credential", re.I)
 
 
@@ -74,15 +76,20 @@ def _run(source_root, rule_file, excludes, extra_files, timeout):
         return [], (done.stderr or "semgrep returned no JSON")[:400]
 
 
-def looks_like_real_secret(line: str) -> bool:
+# The same for Python, where a name is a bare identifier, a keyword argument, a dict key or a subscript.
+PYTHON_NAMED_VALUE = re.compile(
+    r"""(?:^|[\s(,{\[.])['"]?([\w-]+)['"]?\s*\]?\s*(=|:)\s*(['"])(.*?)\3""", re.I)
+
+
+def looks_like_real_secret(line: str, pattern=NAMED_VALUE) -> bool:
     """Drops placeholders and names that only mention a secret. Known key formats skip this check."""
     match = None
-    for match in NAMED_VALUE.finditer(line):
+    for match in pattern.finditer(line):
         if STRONG_NAME.search(match.group(1)) or re.search(r"token", match.group(1), re.I):
             break
     if match is None:
         return True
-    return is_secret_value(match.group(1), match.group(4).strip(), mapping=match.group(2) == "=>")
+    return is_secret_value(match.group(1), match.group(4).strip(), mapping=match.group(2) in ("=>", ":"))
 
 
 def is_secret_value(name: str, value: str, mapping: bool = False) -> bool:
@@ -100,7 +107,7 @@ def is_secret_value(name: str, value: str, mapping: bool = False) -> bool:
     return len(value) >= 12 and bool(re.search(r"\d", value)) and bool(re.search(r"[A-Za-z]", value)) and " " not in value and ":" not in value
 
 
-ENV_FALLBACK = re.compile(r"""(?:getenv|env)\s*\(\s*['"]([\w.-]+)['"]""", re.I)
+ENV_FALLBACK = re.compile(r"""(?:getenv|env|environ\.get)\s*\(\s*['"]([\w.-]+)['"]""", re.I)
 
 
 def fallback_is_secret(line: str) -> bool:

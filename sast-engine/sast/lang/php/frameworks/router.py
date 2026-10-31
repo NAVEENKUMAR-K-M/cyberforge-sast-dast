@@ -23,14 +23,16 @@ PATH_PARAM = re.compile(r"\{(\w+)\??(?::[^}]*)?\}|<(\w+)>|(?<![\w/]):(\w+)|/:(\w
 # An untyped handler parameter with one of these names holds all the route's values.
 ROUTE_VALUE_ARRAYS = {"args", "params", "parameters", "vars", "matches"}
 DOC_ROUTE = re.compile(r"""@(?:\w+\\)*(Route|Get|Post|Put|Patch|Delete|Any)\s*\(\s*(?:path\s*=\s*)?["']([^"']*)["']""", re.I)
+API_ROUTES_FILE = re.compile(r"(^|/)routes/api\.php$")
 HTTP_VERB = re.compile(r"""["'](GET|POST|PUT|PATCH|DELETE)["']""", re.I)
 
 
 class FrameworkRoute:
     """One declared route, and how to run its handler with its parameters marked as input."""
 
-    def __init__(self, fd, route):
+    def __init__(self, fd, route, constraints=None):
         self.fd, self.route = fd, route
+        self.constraints = constraints or {}  # path parameter -> sanitiser label, from ->whereNumber('id') and the like
 
     def run(self, interp):
         path_names = {next(g for g in groups if g) for groups in PATH_PARAM.findall(self.route.path)}
@@ -48,7 +50,10 @@ class FrameworkRoute:
             step = (self.fd.sf.rel, param.line, f"route parameter {short}")
             if short in path_names:
                 taint = Taint(short, "path", (step,))
-                self.route.params.setdefault((short, "path"), Param(short, "path"))
+                constrained = self.constraints.get(short)
+                self.route.params.setdefault((short, "path"), Param(short, "path", type="validated" if constrained else None))
+                if constrained:
+                    taint = taint.sanitized(constrained)
             elif not hint and short.lower() in ROUTE_VALUE_ARRAYS:
                 taint = Taint("*", "path", (step,))
             elif not hint or hint == "string":
@@ -93,6 +98,10 @@ def _call_routes(sf, project, routes, interp) -> list:
         if lowered not in VERBS and lowered not in RESOURCE_CALLS:
             continue
         args = interp._arg_nodes(cur)
+        methods = None
+        if lowered == "match" and len(args) >= 3 and args[0].type == "array_creation_expression":
+            methods = {verb.upper() for verb in HTTP_VERB.findall(args[0].text)} or None
+            args = args[1:]
         if len(args) < 2 or args[0].type not in ("string", "encapsed_string"):
             continue
         path = interp._literal(args[0])
@@ -101,13 +110,56 @@ def _call_routes(sf, project, routes, interp) -> list:
         if not path.startswith("/") and not (receiver is not None and ROUTER_RECEIVER.search(receiver.text)):
             continue
         full = _with_prefix(prefixes.get(cur.sb, ""), path)
+        if API_ROUTES_FILE.search(sf.rel):  # Laravel mounts routes/api.php under /api
+            full = _with_prefix("api", full)
         if lowered in RESOURCE_CALLS:
             found.extend(_resource_routes(args[1], full, project, routes, sf))
             continue
         handler = _handler(args[1], project, sf)
         if handler is not None:
-            found.append(_add(project, routes, handler, full, {"GET" if lowered in ("any", "match", "map") else lowered.upper()}))
+            if methods is None:
+                methods = {"GET", "POST"} if lowered == "any" else {"GET"} if lowered in ("match", "map") else {lowered.upper()}
+            found.append(_add(project, routes, handler, full, methods))
+            found[-1].constraints = _constraints(sf, cur)
     return found
+
+
+_WHERE_CALL = re.compile(r"""\A\s*->\s*(\w+)\s*\(([^)]*)\)""", re.S)
+_NUMERIC_PATTERN = re.compile(r"""^\^?(?:\[0-9\]|\\d)[+*]?\$?$|^\^?\(?\[0-9\]\+\)?\$?$""")
+
+
+def _constraints(sf, node) -> dict:
+    """Reads the calls chained onto a route that restrict a path parameter: ->whereNumber('id'), ->whereUuid('id'),
+    ->where('id', '[0-9]+'). The framework answers 404 to anything else, so no text reaches the handler."""
+    out = {}
+    text = sf.data[node.eb:node.eb + 600].decode("utf-8", "replace")
+    while True:
+        match = _WHERE_CALL.match(text)
+        if not match:
+            return out
+        name, arguments = match.group(1).lower(), match.group(2)
+        quoted = re.findall(r"""['"]([^'"]*)['"]""", arguments)
+        if name in ("wherenumber", "whereuuid", "whereulid", "wherealpha", "wherealphanumeric") and quoted:
+            for param in quoted:
+                out[param] = "int" if name == "wherenumber" else "allowlist"
+        elif name == "where" and len(quoted) >= 2 and _NUMERIC_PATTERN.match(quoted[1].replace(" ", "")):
+            out[quoted[0]] = "int"
+        elif name == "where" and len(quoted) >= 2 and _pattern_is_harmless(quoted[1]):
+            out[quoted[0]] = "allowlist"
+        elif name == "wherein" and quoted:
+            out[quoted[0]] = "allowlist"
+        text = text[match.end():]
+
+
+def _pattern_is_harmless(pattern: str) -> bool:
+    """Whether a route's where() pattern, which Laravel anchors at both ends, can't match any character that does harm
+    in SQL, HTML, a shell or a path."""
+    try:
+        compiled = re.compile(pattern)
+    except re.error:
+        return False
+    unsafe = "'\"<>/\\;&|`$(){}%# .\n"
+    return not any(compiled.fullmatch(sample) for char in unsafe for sample in (char, "a" + char + "a"))
 
 
 def _resource_routes(node, path, project, routes, sf) -> list:

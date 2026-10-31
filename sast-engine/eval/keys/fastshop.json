@@ -1,0 +1,22 @@
+{
+  "app": "benchmarks/fastshop",
+  "note": "A small FastAPI app written for this repository, so read the scores as a best case. Typed path and query parameters, pydantic bodies, Depends, an HTMLResponse and a JSON route that echoes input, with debug off. Checked over HTTP while it ran: every pair below is exploitable.",
+  "pairs": [
+    {"id": "FS1", "cwe": 89, "file": "main.py", "lines": [67, 67], "route": "/api/v1/items/search", "param": "q"},
+    {"id": "FS2", "cwe": 89, "file": "main.py", "lines": [80, 80], "route": "/api/v1/items", "param": "name", "hard": "pydantic body field"},
+    {"id": "FS3", "cwe": 79, "file": "main.py", "lines": [96, 96], "route": "/api/v1/items/{item_id}/notes", "param": "body", "stored": true, "write_route": "/api/v1/items/{item_id}/notes", "hard": "stored through bound parameters, written by a JSON POST"},
+    {"id": "FS4", "cwe": 79, "file": "main.py", "lines": [101, 101], "route": "/api/v1/hello", "param": "name", "hard": "only HTML because of response_class"},
+    {"id": "FS5", "cwe": 22, "file": "main.py", "lines": [111, 111], "route": "/api/v1/files", "param": "name"},
+    {"id": "FS6", "cwe": 601, "file": "main.py", "lines": [116, 116], "route": "/api/v1/go", "param": "url"}
+  ],
+  "code_only": [
+    {"id": "FS7", "cwe": 798, "file": "main.py", "lines": [16, 16]}
+  ],
+  "runtime_only": [],
+  "decoys": [
+    {"id": "D1", "cwe": 89, "file": "main.py", "lines": [56, 56], "why": "column from a fixed map, limit parsed as an integer"},
+    {"id": "D2", "cwe": 89, "file": "main.py", "lines": [72, 72], "why": "bound parameter, integer path parameter"},
+    {"id": "D3", "cwe": 89, "file": "main.py", "lines": [90, 90], "why": "bound parameters"},
+    {"id": "D4", "cwe": 79, "file": "main.py", "lines": [106, 106], "why": "a str returned from a normal FastAPI route is JSON"}
+  ]
+}

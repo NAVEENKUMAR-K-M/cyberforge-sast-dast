@@ -4,7 +4,7 @@ We are winning this gang!
 
 | Folder | What it is | Start here |
 |---|---|---|
-| [sast-engine/](sast-engine/) | Static scanner: reads PHP source, finds bugs and maps URLs to code | [README](sast-engine/README.md) |
+| [sast-engine/](sast-engine/) | Static scanner: reads PHP or Python (Flask, FastAPI, spec-first) source, finds bugs and maps URLs to code | [README](sast-engine/README.md) |
 | [dast-engine/](dast-engine/) | Dynamic scanner: tests the running app | [README](dast-engine/README.md) |
 | [common/](common/) | The one finding format both scanners write, for the correlator to read | [FORMAT.md](common/FORMAT.md) |
 | [correlator/](correlator/) | Joins both reports into one issue per bug: Confirmed, Code only or Runtime only | [README](correlator/README.md) |
@@ -12,13 +12,13 @@ We are winning this gang!
 
 ## Analyst interface
 
-The [web workspace](web/README.md) runs local scans and opens the combined report. Choose DVWA, OWASP Juice Shop, or the bundled benchmark shop; select SAST and/or DAST; follow progress and logs; inspect findings, source routes, coverage, conflicts, and compare completed scans. It exports JSON, standalone HTML, and SARIF. SAST hints are enabled by default; full route-map expansion is optional because it can consume DAST's budget on larger apps. After installing its dependencies and building the frontend:
+The [web workspace](web/README.md) runs local scans and opens the combined report. Choose DVWA, OWASP Juice Shop, or one of the bundled benchmark shops (PHP or Python); select SAST and/or DAST; follow progress and logs; inspect findings, source routes, coverage, conflicts, and compare completed scans. It exports JSON, standalone HTML, and SARIF. SAST hints are enabled by default; full route-map expansion is optional because it can consume DAST's budget on larger apps. After installing its dependencies and building the frontend:
 
 ```sh
 web/.venv/bin/python -m web.server --example
 ```
 
-Open **http://127.0.0.1:8000**. The selected app must already be running locally. The UI limits scan targets to `localhost` and `127.0.0.1`, and shows the full SAST + DAST + correlation elapsed time. SAST currently supports PHP; Juice Shop runs DAST only.
+Open **http://127.0.0.1:8000**. The selected app must already be running locally. The UI limits scan targets to `localhost` and `127.0.0.1`, and shows the full SAST + DAST + correlation elapsed time. SAST supports PHP and Python; Juice Shop runs DAST only.
 
 ## Running everything on the benchmark shop
 
@@ -50,6 +50,26 @@ docker compose -f sast-engine/benchmarks/shop/docker-compose.yml down
 ```
 
 The correlator only needs `jsonschema`, which the SAST environment already has.
+
+## Running everything on the Python benchmark shop
+
+Same steps, with the Flask shop on port 8089. SAST picks the language from the files (`--language python` forces it):
+
+```sh
+cd sast-engine
+.venv/bin/python -m sast.cli scan benchmarks/pyshop --out out/pyshop
+docker compose -f benchmarks/pyshop/docker-compose.yml up -d --build
+cd ../dast-engine
+.venv/bin/python main.py scan --target http://127.0.0.1:8089 --config pyshop.yaml \
+    --route-map ../sast-engine/out/pyshop/routes.json --hints ../sast-engine/out/pyshop/hints.json --output output/pyshop.json
+cd ..
+sast-engine/.venv/bin/python -m correlator.cli --sast sast-engine/out/pyshop/findings.common.json \
+    --dast dast-engine/output/pyshop.common.json --out out/pyshop_issues.json
+sast-engine/.venv/bin/python correlator/eval/score_links.py out/pyshop_issues.json sast-engine/eval/keys/pyshop.json
+docker compose -f sast-engine/benchmarks/pyshop/docker-compose.yml down
+```
+
+`pyshop.yaml` drops `logout` and `reset` from the denylist because pyshop's are harmless and carry a bug the key expects; DAST skips `DELETE` endpoints unless given `--allow-destructive`.
 
 ## Tests
 

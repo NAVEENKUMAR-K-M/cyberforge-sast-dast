@@ -1,0 +1,20 @@
+{
+  "app": "benchmarks/external/vulpy/good",
+  "note": "The fixed version of Vulpy. Its SQL is bound, but it still prints stored posts with | safe (a Content-Security-Policy header is what stops it running in a browser, so the code flaw is real) and still holds a signing key in a constant. Labelled by reading the source at the pinned commit.",
+  "pairs": [
+    {"id": "G1", "cwe": 79, "file": "mod_posts.py", "route": "/posts/", "param": "text", "stored": true, "hard": "stored through bound parameters, printed by a template with | safe; mitigated at runtime by CSP"}
+  ],
+  "code_only": [
+    {"id": "G2", "cwe": 798, "file": "libapi.py", "lines": [10, 10]},
+    {"id": "G3", "cwe": 798, "file": "vulpy.py", "lines": [17, 17]},
+    {"id": "G4", "cwe": 798, "file": "vulpy-ssl.py", "lines": [13, 13]},
+    {"id": "G5", "cwe": 489, "file": "vulpy.py"},
+    {"id": "G6", "cwe": 489, "file": "vulpy-ssl.py"}
+  ],
+  "runtime_only": [],
+  "decoys": [
+    {"id": "D1", "cwe": 89, "file": "libuser.py", "why": "bound parameters"},
+    {"id": "D2", "cwe": 89, "file": "libposts.py", "why": "bound parameters"},
+    {"id": "D3", "cwe": 89, "file": "libmfa.py", "why": "bound parameters"}
+  ]
+}

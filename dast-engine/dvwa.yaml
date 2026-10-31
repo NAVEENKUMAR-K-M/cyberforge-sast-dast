@@ -13,6 +13,7 @@ start_rps: 25
 floor_rps: 5
 verify_tls: false
 max_pages: 200
+probe_concurrency: 4    # points probed at once; the rate limiter still bounds requests per second
 
 active_backend: python   # custom Python probes (sqli/xss/cmdi/path_traversal/open_redirect)
 

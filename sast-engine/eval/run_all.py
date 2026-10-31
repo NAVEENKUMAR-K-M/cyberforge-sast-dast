@@ -8,30 +8,39 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from eval.score import score  # noqa: E402
-from sast.core.language import ScanOptions  # noqa: E402
-from sast.lang.php.adapter import PhpAdapter  # noqa: E402
+from sast.core.language import ScanOptions, load_adapter  # noqa: E402
 
+# name, folder, role, language
 APPS = [
-    ("shop", "benchmarks/shop", "own, runtime-verified"),
-    ("dvwa", "benchmarks/external/dvwa", "development"),
-    ("mutillidae", "benchmarks/external/mutillidae", "development"),
-    ("xvwa", "benchmarks/external/xvwa", "holdout"),
-    ("bwapp", "benchmarks/external/bwapp", "holdout"),
+    ("shop", "benchmarks/shop", "own, runtime-verified", "php"),
+    ("lashop", "benchmarks/lashop/overlay", "own, runtime-verified", "php"),
+    ("djshop", "benchmarks/djshop", "own, runtime-verified", "python"),
+    ("pyshop", "benchmarks/pyshop", "own, runtime-verified", "python"),
+    ("fastshop", "benchmarks/fastshop", "own, runtime-verified", "python"),
+    ("vulpy", "benchmarks/external/vulpy/bad", "holdout (Python)", "python"),
+    ("vulpy_good", "benchmarks/external/vulpy/good", "holdout (Python)", "python"),
+    ("vampi", "benchmarks/external/vampi", "holdout (Python)", "python"),
+    ("vulnflask", "benchmarks/external/vulnflask", "holdout (Python)", "python"),
+    ("dvwa", "benchmarks/external/dvwa", "development", "php"),
+    ("mutillidae", "benchmarks/external/mutillidae", "development", "php"),
+    ("xvwa", "benchmarks/external/xvwa", "holdout", "php"),
+    ("bwapp", "benchmarks/external/bwapp", "holdout", "php"),
 ]
+EXTENSIONS = {"php": ".php", "python": ".py"}
 
 
 def main() -> int:
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     print(f"{'app':<12}{'role':<24}{'detected':<16}{'pairs':<10}{'decoys':<8}{'routes':<8}{'open':<6}{'safe':<6}{'secs':<6}")
     problems = 0
-    for name, path, role in APPS:
+    for name, path, role, language in APPS:
         full = os.path.join(root, path)
-        # An empty folder is what an interrupted download leaves behind, so look for PHP, not just the folder.
-        if not any(f.endswith(".php") for _, _, files in os.walk(full) for f in files):
+        # An empty folder is what an interrupted download leaves behind, so look for source, not just the folder.
+        if not any(f.endswith(EXTENSIONS[language]) for _, _, files in os.walk(full) for f in files):
             print(f"{name:<12}not fetched: run benchmarks/fetch.sh")
             problems += 1
             continue
-        result = PhpAdapter().scan(full, ScanOptions())  # the settings an unseen app gets
+        result = load_adapter(language).scan(full, ScanOptions())  # the settings an unseen app gets
         with open(os.path.join(root, "eval", "keys", f"{name}.json")) as handle:
             scored = score(result.findings, json.load(handle))
         problems += len(scored["missed"]) + len(scored["false_alarms"]) + len(scored["wrong_route_or_param"])

@@ -10,11 +10,12 @@ itself is blocked but the directory-walk still works.
 from __future__ import annotations
 
 import logging
+import re
 
 from core.models import Baseline, Confidence, Evidence, Finding, InjectionPoint, Severity
 from core.request_manager import RequestManager
 from scanners.probes.base import Probe
-from scanners.probes.util import build_request, load_payloads
+from scanners.probes.util import build_request, load_payloads, random_marker
 
 logger = logging.getLogger("dast.probes.path_traversal")
 
@@ -57,6 +58,15 @@ class PathTraversalProbe(Probe):
         if point.param is None:
             return []
 
+        # A point that answers a control value, an absolute path and a deep traversal alike isn't reading a file
+        # from its input, so the 28 attempts below would be wasted on it. A hinted point skips this check:
+        # the code is known to open files there.
+        reacts = True
+        if not hinted:
+            reacts = await self._reacts_to_paths(rm, point)
+            if not reacts:
+                return []
+
         tried = 0
         # tier-1 budget: 12 absolute-path attempts + a couple of plain
         # relative depths (2 seqs x 2 depths x 4 targets = 16) = 28, so a
@@ -92,6 +102,63 @@ class PathTraversalProbe(Probe):
                         tool="dast-engine",
                     )
                 ]
+        return await self._blind_differential(rm, point)
+
+    async def _reacts_to_paths(self, rm: RequestManager, point: InjectionPoint) -> bool:
+        control_value = random_marker(prefix="ctrl", length=10)
+        control = await self._send(rm, point, control_value)
+        if control is None:
+            return True  # can't tell, so keep looking
+        for value in ("/etc/passwd", "../" * 8 + "etc/passwd"):
+            resp = await self._send(rm, point, value)
+            if resp is not None and self._differs(control, control_value, resp, value):
+                return True
+        return False
+
+    @staticmethod
+    def _differs(control, control_value: str, resp, value: str) -> bool:
+        """Whether two responses differ for a reason other than echoing the value that was sent."""
+        if resp.status_code != control.status_code:
+            return True
+        a, b = control.text.replace(control_value, ""), resp.text.replace(value, "")
+        return abs(len(a) - len(b)) > max(30, 0.03 * len(a))
+
+    @staticmethod
+    async def _send(rm: RequestManager, point: InjectionPoint, value: str):
+        url, kwargs = build_request(point, value)
+        return await rm.send(point.method, url, **kwargs)
+
+    async def _blind_differential(self, rm: RequestManager, point: InjectionPoint) -> list[Finding]:
+        """For an app that never shows the file, only whether the read worked: a traversal to a file that
+        exists succeeds, the same traversal to one that doesn't fails exactly as a plain unknown name does."""
+        control_value = random_marker(prefix="ctrl", length=10)
+        control = await self._send(rm, point, control_value)
+        if control is None:
+            return []
+        for depth in (6, 10):
+            prefix = "../" * depth
+            existing = await self._send(rm, point, prefix + "etc/passwd")
+            missing = await self._send(rm, point, prefix + "etc/" + random_marker(prefix="nofile", length=8))
+            if existing is None or missing is None:
+                continue
+            if existing.status_code < 400 and control.status_code >= 400 and missing.status_code == control.status_code:
+                return [Finding(
+                    cwe=self.cwe,
+                    title="Path Traversal / Local File Inclusion",
+                    severity=Severity.HIGH,
+                    confidence=Confidence.FIRM,
+                    method=point.method,
+                    url=point.url,
+                    route_template=point.route_template,
+                    param=point.param,
+                    param_location=point.param_location.value if hasattr(point.param_location, "value") else point.param_location,
+                    payload=prefix + "etc/passwd",
+                    technique="traversal-differential",
+                    evidence=Evidence(
+                        matched=f"status {existing.status_code} for /etc/passwd, {missing.status_code} for a missing file and for an unknown name",
+                        response_excerpt=existing.text[:300], probe_status=existing.status_code),
+                    tool="dast-engine",
+                )]
         return []
 
     async def verify(self, rm: RequestManager, method: str, url: str, route_template: str, param: str | None, param_location: str) -> Finding | None:

@@ -1,0 +1,30 @@
+{
+  "app": "benchmarks/lashop/overlay",
+  "note": "The application files of a Laravel 11 app that we wrote (the framework skeleton is installed by the Dockerfile), so read the scores as a best case. Production mode, so an error is a bare 500, and web forms are protected by Laravel's CSRF token. Every pair below was found by DAST over HTTP while it ran. Written after the first run on it, which found the SQL injections but had no /tools/ping route, no /api prefix, no path traversal and no stored XSS.",
+  "pairs": [
+    {"id": "LA1", "cwe": 89, "file": "app/Http/Controllers/ShopController.php", "lines": [19, 19], "route": "/search", "param": "q"},
+    {"id": "LA2", "cwe": 89, "file": "app/Http/Controllers/ShopController.php", "lines": [25, 25], "route": "/products/{id}", "param": "id", "hard": "unquoted number in a path parameter"},
+    {"id": "LA3", "cwe": 89, "file": "app/Http/Controllers/ApiController.php", "lines": [13, 13], "route": "/api/orders", "param": "customer", "hard": "route is in routes/api.php, which Laravel mounts under /api"},
+    {"id": "LA4", "cwe": 79, "file": "resources/views/search.blade.php", "route": "/search", "param": "q", "hard": "{!! !!} in a Blade view"},
+    {"id": "LA5", "cwe": 79, "file": "resources/views/product.blade.php", "route": "/products/{id}", "param": "body", "stored": true, "write_route": "/products/{id}/reviews", "hard": "stored through DB::insert bindings, printed by {!! !!} inside @foreach, written through a CSRF-protected form"},
+    {"id": "LA6", "cwe": 78, "file": "app/Http/Controllers/ShopController.php", "lines": [57, 57], "route": "/tools/ping", "param": "host", "hard": "Route::match(['get', 'post']), CSRF-protected form"},
+    {"id": "LA7", "cwe": 22, "file": "app/Http/Controllers/ShopController.php", "lines": [38, 38], "route": "/download", "param": "file", "hard": "response()->download()"},
+    {"id": "LA8", "cwe": 601, "file": "app/Http/Controllers/ShopController.php", "lines": [43, 43], "route": "/go", "param": "url"}
+  ],
+  "code_only": [
+    {"id": "LK1", "cwe": 798, "file": "config/shop.php", "lines": [4, 4]},
+    {"id": "LK2", "cwe": 798, "file": "config/shop.php", "lines": [5, 5]}
+  ],
+  "runtime_only": [],
+  "decoys": [
+    {"id": "D1", "cwe": 89, "file": "app/Http/Controllers/ApiController.php", "lines": [18, 18], "why": "->whereNumber('id'): the router only accepts digits"},
+    {"id": "D2", "cwe": 89, "file": "app/Http/Controllers/ApiController.php", "lines": [24, 24], "why": "bound parameters after validate()"},
+    {"id": "D3", "cwe": 89, "file": "app/Http/Controllers/ShopController.php", "lines": [26, 26], "why": "bound parameter"},
+    {"id": "D4", "cwe": 89, "file": "app/Http/Controllers/ShopController.php", "lines": [32, 32], "why": "bound parameters"},
+    {"id": "D5", "cwe": 601, "file": "app/Http/Controllers/ShopController.php", "lines": [33, 33], "why": "fixed /products/ prefix"},
+    {"id": "D6", "cwe": 601, "file": "app/Http/Controllers/ShopController.php", "lines": [50, 50], "why": "allowlist, reset on failure"},
+    {"id": "D7", "cwe": 89, "file": "app/Http/Controllers/ShopController.php", "lines": [69, 69], "why": "Eloquent where() binds its value"},
+    {"id": "D8", "cwe": 79, "file": "resources/views/profile.blade.php", "why": "{{ }} escapes"},
+    {"id": "D9", "cwe": 79, "file": "resources/views/ping.blade.php", "why": "{{ }} escapes"}
+  ]
+}

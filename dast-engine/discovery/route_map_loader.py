@@ -18,6 +18,8 @@ import json
 import logging
 from pathlib import Path
 
+from discovery.templates import normalize, path_index
+
 logger = logging.getLogger("dast.route_map_loader")
 
 # SAST locations with a direct DAST ParamLocation equivalent (same spelling).
@@ -121,8 +123,20 @@ def load_route_map(path: str | Path) -> list[dict]:
 
 
 def hint_key(method: str, route: str, param: str | None, selector: str | None) -> tuple:
-    """A trailing slash makes no difference: `/x/` from a crawl is `/x/` from SAST."""
-    return (method.upper(), route.rstrip("/") or "/", param, selector)
+    """A trailing slash makes no difference (`/x/` from a crawl is `/x/` from SAST), and neither does what a
+    placeholder is called (`/orders/{id}` from a crawl is `/orders/{order_id}` from SAST)."""
+    return (method.upper(), normalize(route), param, selector)
+
+
+def hint_keys(method: str, route: str, param: str | None, location: str | None, selector: str | None) -> list[tuple]:
+    """Every way a hint for this point may have been written. A path parameter is also known by its position,
+    since two tools rarely call the same placeholder the same thing."""
+    keys = [hint_key(method, route, param, selector)]
+    if location == "path" and param:
+        index = path_index(route, param)
+        if index is not None:
+            keys.append(hint_key(method, route, f"#path{index}", selector))
+    return keys
 
 
 def load_sast_hints(path: str | Path | None) -> dict:
@@ -143,6 +157,9 @@ def load_sast_hints(path: str | Path | None) -> dict:
         return {}
     index: dict[tuple, list[str]] = {}
     for h in data.get("hints", []):
-        key = hint_key(h.get("method", "GET"), h.get("route") or "", h.get("param"), h.get("selector"))
-        index.setdefault(key, []).append(h.get("cwe"))
+        route = h.get("route") or ""
+        # A hint on a name that is one of the route's placeholders is a path parameter; keep it by position too.
+        location = "path" if h.get("param") and "{" + str(h.get("param")) in route else None
+        for key in hint_keys(h.get("method", "GET"), route, h.get("param"), location, h.get("selector")):
+            index.setdefault(key, []).append(h.get("cwe"))
     return index

@@ -73,8 +73,9 @@ def cli():
 @click.option("--output", "output_path", default=None, help="Output JSON path (overrides the config file's output_path)")
 @click.option("--active-backend", default=None, help="zap | nuclei | none")
 @click.option("--deadline", "deadline_seconds", default=None, type=float, help="Total scan budget in seconds")
+@click.option("--allow-destructive", is_flag=True, help="Also test DELETE endpoints, which are skipped by default because a request can remove real records")
 @_auth_options
-def scan(target, config_path, route_map_path, hints_path, output_path, active_backend, deadline_seconds,
+def scan(target, config_path, route_map_path, hints_path, output_path, active_backend, deadline_seconds, allow_destructive,
          login_url, username, password, json_login, headers, cookies, bearer_token):
     cfg = _load_config(config_path)
     _apply_auth_options(cfg, login_url, username, password, json_login, headers, cookies, bearer_token)
@@ -88,6 +89,8 @@ def scan(target, config_path, route_map_path, hints_path, output_path, active_ba
         cfg["active_backend"] = active_backend
     if deadline_seconds:
         cfg["deadline_seconds"] = deadline_seconds
+    if allow_destructive:
+        cfg["allow_destructive"] = True
     if output_path:
         cfg["output_path"] = output_path
     cfg.setdefault("output_path", "output/dast_results.json")
@@ -101,6 +104,8 @@ def scan(target, config_path, route_map_path, hints_path, output_path, active_ba
     if "points_tested" in coverage:
         click.echo(f"Coverage: tested {coverage['points_tested']} of {coverage['points_found'] - coverage['points_dropped_by_scope']} "
                    f"injection points ({coverage['points_hinted']} hinted by SAST, {coverage['points_dropped_by_scope']} blocked by scope)")
+    if coverage.get("pairs_skipped_destructive"):
+        click.echo(f"Skipped {coverage['pairs_skipped_destructive']} test(s) on DELETE endpoints; --allow-destructive includes them.")
     if coverage.get("deadline_reached"):
         click.echo("WARNING: the deadline cut this scan short, so some points weren't tested. Results are incomplete.")
 

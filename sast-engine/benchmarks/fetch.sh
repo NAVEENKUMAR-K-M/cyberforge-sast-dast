@@ -35,6 +35,11 @@ fetch dvwa digininja/DVWA a1978a2fed195acd093010af6395f86a281537ca || failed="$f
 fetch mutillidae webpwnized/mutillidae 126a1fdb4ff977f87e980d018f0def477afc3d5d || failed="$failed mutillidae"
 fetch bwapp raesene/bWAPP 53bcfdd59c02dcfdbf79e218f0a99c54ff42d799 || failed="$failed bwapp"
 fetch xvwa s4n7h0/xvwa fb30fa517d288e618b521d252f61107ef6a24797 || failed="$failed xvwa"
+# Python apps, for the Python engine. Labelled and scored before any tuning, so they stand in for an unseen app.
+fetch vulpy fportantier/vulpy 5249cc8b05a1c37f6b2f757b1cf16a509c327122 || failed="$failed vulpy"
+fetch vampi erev0s/VAmPI f16052dce83f05847133ec98f01c5193a41de7d8 || failed="$failed vampi"
+fetch vulnflask we45/Vulnerable-Flask-App b6a4f97afd466e83e1f60781494252dec1c37039 || failed="$failed vulnflask"
+fetch pygoat adeyosemanputra/pygoat 32a0a59bbebf9ff155c4103343af2896bff8d9d8 || failed="$failed pygoat"
 
 if [ -n "$failed" ]; then
     echo "could not download:$failed. Check your connection and run this again." >&2

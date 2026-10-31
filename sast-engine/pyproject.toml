@@ -3,7 +3,7 @@ name = "cyberforge-sast"
 version = "0.1.0"
 description = "PHP SAST engine for the CyberForge SAST and DAST correlation tool"
 requires-python = ">=3.10"
-dependencies = ["tree-sitter==0.26.0", "tree-sitter-php==0.25.1", "semgrep==1.183.0"]
+dependencies = ["tree-sitter==0.26.0", "tree-sitter-php==0.25.1", "semgrep==1.183.0", "pyyaml>=6"]
 
 [project.scripts]
 cyberforge-sast = "sast.cli:main"

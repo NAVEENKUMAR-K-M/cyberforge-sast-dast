@@ -31,3 +31,11 @@ windows_command_template: "set /a {a}+{b}"
 # duration is clearly distinguishable from normal response latency.
 sleep_unix_template: "sleep {sleep}"
 sleep_windows_template: "ping -n {sleep_plus_one} 127.0.0.1 >nul"
+
+# Ways to run the sleep. An app that blocks ";" "|" and "&" often forgets substitution and newlines.
+sleep_unix_forms:
+  - "; {cmd}"
+  - "$({cmd})"
+  - "`{cmd}`"
+  - "| {cmd}"
+  - "\n{cmd}"

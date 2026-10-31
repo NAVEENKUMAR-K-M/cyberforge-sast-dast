@@ -147,6 +147,55 @@ reaches pages a crawler can't find. A route's `selector` (`action=view` on
 finding, so two bugs on one path stay separate. A route or selector matching the
 denylist is never requested.
 
+### JSON APIs and apps that hide their errors (Flask, FastAPI, ...)
+
+A Python API in production doesn't print database errors, so these are handled
+separately from the PHP-style cases above:
+
+- **Debug-off SQL injection.** A lone `'` that makes the server fail with a bare
+  500, while `''` and a harmless value both succeed (and a repeat of `'` fails
+  again), is reported as a *firm* `error-differential` finding. A field that
+  rejects odd characters outright, or an input parsed as a number first, fails
+  every probe alike and stays silent. It can't see an input used as a bare
+  identifier, such as `ORDER BY <column>`.
+- **OpenAPI documents** (`/openapi.json`, `.yaml`, and the usual framework paths)
+  are read with `$ref`, `allOf`, `required`, examples and formats. Required
+  sibling fields travel with the one under test, with a value of the right type,
+  so a JSON body is not rejected with a 422 before it reaches the code.
+- **Typed parameters are skipped.** An integer, boolean, UUID, enum or date is
+  parsed before the app sees it, so no payload can be injected through it. They
+  are counted in `coverage.pairs_skipped_typed`. SAST's route map marks the
+  same parameters `type: validated`.
+- **Baselines have the request's real shape** (the form or JSON body, the path
+  placeholder filled in), so a POST isn't compared against an error page.
+- **Stored values written through an API** (JSON or form POST/PUT/PATCH) get the
+  same marker check as forms, and every known GET page is re-read for it.
+- **Blind command injection** also tries `$(sleep N)`, backticks, a pipe and a
+  newline, since apps that block `;`, `|` and `&` often forget substitution.
+- **Path traversal** on an API that never shows the file: `/etc/passwd` succeeds
+  and a missing file fails exactly as an unknown name does (`traversal-differential`).
+- **`DELETE` endpoints are skipped** unless `--allow-destructive` is given, since even
+  a baseline request would delete the record.
+
+### CSRF-protected apps (Laravel, Django, Rails, ...)
+
+A write without the app's CSRF token is refused before any code runs (Laravel answers `419`), so a scan that ignores it finds nothing on every form. DAST carries the token the way a browser would:
+
+- hidden token fields of a crawled form (`_token`, `csrfmiddlewaretoken`, `authenticity_token`, ...) travel with the same point when it came from SAST's route map, and are not themselves fuzzed;
+- an `XSRF-TOKEN` or `csrftoken` cookie is sent back as `X-XSRF-TOKEN` or `X-CSRFToken` on every write.
+
+Verified on a Django 5 app too (`403` without `csrfmiddlewaretoken` or the `csrftoken` header): command injection on `/tools/ping/` and the stored XSS through a class-based view's form are both found, crawl-only and from the route map. Verified on a real Laravel 11 app: `POST /tools/ping` (command injection) and the review form (stored XSS) are found both crawl-only and from the route map. A token embedded in a page in some other way (a meta tag read by JavaScript) is not read.
+
+### Time
+
+Points are probed `probe_concurrency` (default 4) at a time, hinted tests first,
+then cheapest probe first across all points, so a deadline costs the dearest,
+least likely tests. An endpoint that takes seconds per request (a DNS lookup)
+is probed alone, after the quick ones, so it can't occupy every worker of a small
+server. The rate limiter judges slowness against what each endpoint normally
+takes, and a 500 isn't counted as load (it is how a debug-off app reports a
+broken query). `coverage.probe_seconds` shows where the time went.
+
 ### Re-testing one finding
 
 ```bash
@@ -176,6 +225,18 @@ and `--param-location` are optional. `api.py` explains how to call it in-process
   route map: 13 of the 22 planted runtime-provable bugs proven, 0 of the 8 decoys
   checked by `eval/verify_shop.py` reported as injection, in about 117s. The
   remaining 9 aren't reached or confirmed yet.
+- On the Flask benchmark `sast-engine/benchmarks/pyshop` (37 URLs, debug off,
+  answer key `eval/answer_keys/pyshop.json`), with SAST's route map and hints:
+  **92% detection (23/25), 0 false alarms**, 1700 requests in about 137s. Run
+  crawl-only, the first measurement before any Python work was **24% (6/25)**.
+  The two misses are an `ORDER BY` column and a traversal that is limited to a
+  `.html` suffix. We wrote that app and its key, so this is a best case.
+  Through the correlator, 21 of the 23 planted pairs come out *Confirmed*, with no
+  wrong links.
+- Against two apps we did not write: VAmPI (Flask + connexion) from its OpenAPI
+  document alone finds the SQL injection in 23s; with SAST's route map it is a
+  Confirmed issue. A small FastAPI app (`sast-engine/benchmarks/fastshop`) gets 6
+  Confirmed issues, including a stored XSS written through a JSON POST.
 - Re-running the same scan twice produces identical `finding_id` values
   (FR-6).
 

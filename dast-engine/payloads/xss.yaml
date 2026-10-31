@@ -26,3 +26,8 @@ marker_payloads:
   # A realistic tag-based payload (vs. the bare, nameless "<marker>"
   # above) -- more convincing evidence, same verbatim-survival check.
   - "'><svg onload={marker}>"
+
+# Tried only where the marker already reflected and nothing above fired. HTML-escaping leaves a space and an
+# equals sign alone, so when the value lands in an attribute with no quotes (<img src=VALUE>) this adds a new
+# attribute. Judged only when the text right before it is `name=`, since inside quotes it is inert.
+unquoted_attribute_payload: "{marker} onmouseover={marker}"

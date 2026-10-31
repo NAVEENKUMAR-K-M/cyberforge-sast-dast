@@ -175,6 +175,7 @@ def _terminates_text(text) -> bool:
 _CALLBACK_RE = re.compile(r"""\b(?:register|add_function|add_action|add_filter)\s*\(\s*(?:['"][\w-]+['"]\s*,\s*)?['"]([A-Za-z_]\w*)['"]""")
 _TEMPLATE_EXT = re.compile(r"(\.blade\.php|\.html\.twig|\.twig|\.tpl)$")
 _BLADE_RAW = re.compile(r"\{!!(.*?)!!\}")
+_BLADE_LOOP = re.compile(r"@(?:foreach|forelse)\s*\(\s*\$(\w+)\s+as\s+(?:\$\w+\s*=>\s*)?\$(\w+)\s*\)")
 _TWIG_OUTPUT = re.compile(r"\{\{\s*([A-Za-z_]\w*)([^}]*)\}\}")
 _SMARTY_OUTPUT = re.compile(r"\{\$(\w+)([^}]*)\}")
 _LINK_RE = re.compile(r"[?&]([A-Za-z_]\w*)=([\w\-./]+)")
@@ -223,11 +224,22 @@ def _raw_outputs(name: str, lines: list) -> list:
     """Returns (line, variable, text) for each place a template prints a value without escaping it."""
     out = []
     if name.endswith(".blade.php"):
+        # `@foreach ($reviews as $review)`: printing $review raw prints what was passed in as $reviews.
+        loops = {}
+        for line in lines:
+            for source, alias in _BLADE_LOOP.findall(line):
+                loops[alias] = source
         for number, line in enumerate(lines, 1):
             for expr in _BLADE_RAW.findall(line):
                 root = re.match(r"\s*\$(\w+)", expr)
                 if root:
                     out.append((number, root.group(1), expr.strip()))
+                    seen = {root.group(1)}
+                    name_ = root.group(1)
+                    while name_ in loops and loops[name_] not in seen:
+                        name_ = loops[name_]
+                        seen.add(name_)
+                        out.append((number, name_, expr.strip()))
     elif name.endswith(".twig"):
         autoescape_off = False
         for number, line in enumerate(lines, 1):

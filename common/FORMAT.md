@@ -52,4 +52,6 @@ python common/validate.py sast-engine/out/shop/findings.common.json dast-engine/
 
 ## Matching a pair
 
+Route templates are written with `{name}` placeholders by every producer (`/orders/{order_id}`, never `<int:order_id>` or `:order_id`), and the placeholder's name may differ between SAST and DAST (a crawl calls it `{id}`), so compare placeholders by position. A path parameter has `location: "path"` on both sides; a JSON body field is `json` on SAST and on DAST.
+
 Match on `cwe_family`, then route (`path` or an alias, and `selector` when both sides have one), then parameter `name`. The `common/examples/` folder holds one real SQL injection found by each side in the same app.

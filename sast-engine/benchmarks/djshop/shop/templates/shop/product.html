@@ -1,0 +1,19 @@
+<!doctype html>
+<html><head><title>Product</title></head>
+<body>
+{% if product %}
+<h1>{{ product.1 }}</h1>
+<ul>
+{% for review in reviews %}
+  <li>{{ review.body|safe }}</li>
+{% endfor %}
+</ul>
+<form method="post" action="/products/{{ pk }}/reviews/">
+  {% csrf_token %}
+  <textarea name="body"></textarea>
+  <button>Post</button>
+</form>
+{% else %}
+<p>No such product</p>
+{% endif %}
+</body></html>

@@ -8,11 +8,8 @@ import sys
 
 from sast.common_export import to_common
 from sast.hints_export import to_hints
-from sast.core.language import ScanOptions
-from sast.lang.php.adapter import PhpAdapter
+from sast.core.language import ADAPTER_MODULES, ScanOptions, detect_language, load_adapter
 from sast.sarif import to_sarif
-
-ADAPTERS = {"php": PhpAdapter}
 
 
 def main(argv=None) -> int:
@@ -21,7 +18,8 @@ def main(argv=None) -> int:
     scan = sub.add_parser("scan", help="scan a source folder")
     scan.add_argument("source", help="folder holding the application's source code")
     scan.add_argument("--out", default="out", help="folder for findings.json and routes.json")
-    scan.add_argument("--language", default="php", choices=sorted(ADAPTERS))
+    scan.add_argument("--language", default="auto", choices=["auto", *sorted(ADAPTER_MODULES)],
+                      help="source language; detected from the files when left as auto")
     scan.add_argument("--web-root", help="web root relative to source; detected when left out")
     scan.add_argument("--base-path", default="", help="URL prefix the app is served under, such as /dvwa")
     scan.add_argument("--exclude", action="append", default=[], help="folder name to skip; can be repeated")
@@ -33,7 +31,8 @@ def main(argv=None) -> int:
         print(f"error: source folder not found: {args.source}", file=sys.stderr)
         return 2
     options = ScanOptions(args.web_root, args.base_path, args.exclude, not args.no_semgrep)
-    result = ADAPTERS[args.language]().scan(args.source, options)
+    language = detect_language(args.source) if args.language == "auto" else args.language
+    result = load_adapter(language).scan(args.source, options)
     os.makedirs(args.out, exist_ok=True)
     meta = {"language": result.language, "source_root": result.source_root, "web_root": result.web_root, "stats": result.stats}
     with open(os.path.join(args.out, "findings.json"), "w") as handle:

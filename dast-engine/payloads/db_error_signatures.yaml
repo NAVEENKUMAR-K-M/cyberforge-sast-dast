@@ -17,11 +17,20 @@ mysql:
   - "uncaught mysqli_sql_exception"
   - "unknown column"
   - "supplied argument is not a valid mysql"
+  - "pymysql.err."
+  - "mysql.connector.errors."
+  - "mysqldb.exceptions."
+  - "error 1064 (42000)"
 
 postgresql:
   - "pg_query(): query failed"
   - "pg_exec(): query failed"
-  - "unterminated quoted string"
+  - "unterminated quoted string at or near"
+  - "syntax error at or near"
+  - "psycopg2.errors."
+  - "psycopg2.operationalerror"
+  - "psycopg2.programmingerror"
+  - "psycopg.errors."
   - "invalid input syntax for"
   - "org.postgresql.util.psqlexception:"
 
@@ -30,6 +39,11 @@ sqlite:
   - "sqlite_error"
   - "near \"\": syntax error"
   - "unrecognized token"
+  - "sqlite3.programmingerror"
+  - "no such column:"
+  - "no such table:"
+  - "sqlite3.integrityerror:"
+  - "(sqlite3.operationalerror)"
 
 mssql:
   - "unclosed quotation mark after the character string"
@@ -42,3 +56,13 @@ oracle:
   - "ora-01756"
   - "ora-00936"
   - "quoted string not properly terminated"
+
+# Python data layers. These appear on debug pages and in logged tracebacks that an app leaks, and a
+# SQLAlchemy or Django error carries the driver's own message, so they confirm without the driver text.
+python:
+  - "sqlalchemy.exc."
+  - "django.db.utils."
+  - "django.db.utils.operationalerror"
+  - "peewee.operationalerror"
+  - "asyncpg.exceptions."
+  - "tortoise.exceptions."

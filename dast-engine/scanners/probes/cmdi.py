@@ -71,9 +71,10 @@ class CmdiProbe(Probe):
         return []
 
     async def _sleep_based(self, rm: RequestManager, point: InjectionPoint, baseline: Baseline) -> Finding | None:
-        unix_payload = f"; {self._payloads['sleep_unix_template'].format(sleep=SLEEP_S)}"
+        unix_cmd = self._payloads["sleep_unix_template"].format(sleep=SLEEP_S)
+        forms = self._payloads.get("sleep_unix_forms") or ["; {cmd}"]
         win_payload = f"& {self._payloads['sleep_windows_template'].format(sleep_plus_one=SLEEP_S + 1)}"
-        for payload in (unix_payload, win_payload):
+        for payload in (*[form.format(cmd=unix_cmd) for form in forms], win_payload):
             url, kwargs = build_request(point, payload)
             start = time.monotonic()
             resp = await rm.send(point.method, url, serial=True, **kwargs)

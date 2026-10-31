@@ -1,0 +1,17 @@
+{
+  "app": "benchmarks/external/vampi",
+  "note": "Labelled by reading the source at the pinned commit. VAmPI's headline flaws are broken access control, mass assignment and weak JWT handling, which this tool does not name; the one injection is in User.get_user, reached from a route that only the OpenAPI document declares. Its first run found zero routes, because the Python engine looked only for decorators.",
+  "pairs": [
+    {"id": "A1", "cwe": 89, "file": "models/user_model.py", "route": "/users/v1/{username}", "param": "username", "hard": "route declared only in the OpenAPI document, sink in a model method called through its class"}
+  ],
+  "code_only": [
+    {"id": "A2", "cwe": 798, "file": "config.py", "lines": [13, 13]},
+    {"id": "A3", "cwe": 489, "file": "app.py"}
+  ],
+  "runtime_only": [],
+  "decoys": [
+    {"id": "D1", "cwe": 89, "file": "api_views/users.py", "why": "SQLAlchemy filter_by"},
+    {"id": "D2", "cwe": 89, "file": "api_views/books.py", "why": "SQLAlchemy filter_by"},
+    {"id": "D3", "cwe": 798, "file": "api_views/users.py", "why": "a status message under a key named Password"}
+  ]
+}

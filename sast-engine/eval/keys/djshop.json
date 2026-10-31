@@ -1,0 +1,34 @@
+{
+  "app": "benchmarks/djshop",
+  "note": "A Django 5 app we wrote (urls.py with include(), converters and re_path, function and class views, the ORM, a Form, templates with | safe), so read the scores as a best case. DEBUG is off, so an error is a bare 500, and writes need Django's CSRF token. Every pair below was found by DAST over HTTP while it ran. Written after the first run, which is where Django had no routes at all.",
+  "pairs": [
+    {"id": "DJ1", "cwe": 89, "file": "shop/views.py", "lines": [26, 26], "route": "/search/", "param": "q"},
+    {"id": "DJ2", "cwe": 89, "file": "shop/views.py", "lines": [46, 46], "route": "/products/by-category/{category}/", "param": "category", "hard": "Model.objects.raw() with % formatting, path parameter"},
+    {"id": "DJ3", "cwe": 89, "file": "shop/views.py", "lines": [106, 106], "route": "/api/orders/", "param": "customer", "hard": "route mounted through include('shop.api_urls') under api/"},
+    {"id": "DJ4", "cwe": 79, "file": "shop/views.py", "lines": [28, 28], "route": "/search/", "param": "q", "hard": "{{ q|safe }} in a template"},
+    {"id": "DJ5", "cwe": 79, "file": "shop/views.py", "lines": [36, 36], "route": "/products/{pk}/", "param": "body", "stored": true, "write_route": "/products/{pk}/reviews/", "hard": "stored through Review.objects.create in a class-based view, printed by |safe, written through a CSRF-protected form"},
+    {"id": "DJ6", "cwe": 79, "file": "shop/views.py", "lines": [100, 100], "route": "/contact/", "param": "name", "hard": "form.cleaned_data"},
+    {"id": "DJ7", "cwe": 78, "file": "shop/views.py", "lines": [62, 62], "route": "/tools/ping/", "param": "host"},
+    {"id": "DJ8", "cwe": 22, "file": "shop/views.py", "lines": [73, 73], "route": "/download/", "param": "file"},
+    {"id": "DJ9", "cwe": 601, "file": "shop/views.py", "lines": [82, 82], "route": "/go/", "param": "url"},
+    {"id": "DJ10", "cwe": 79, "file": "shop/views.py", "lines": [125, 125], "route": "/notes/", "param": "text", "stored": true, "write_route": "/notes/new/", "hard": "generic ListView and CreateView: no view code at all, the framework stores `fields` and the template prints them with |safe"}
+  ],
+  "code_only": [
+    {"id": "DK1", "cwe": 798, "file": "config/settings.py", "lines": [5, 5]},
+    {"id": "DK2", "cwe": 798, "file": "config/settings.py", "lines": [6, 6]}
+  ],
+  "runtime_only": [],
+  "decoys": [
+    {"id": "D1", "cwe": 89, "file": "shop/views.py", "lines": [33, 33], "why": "<int:pk>: the router only passes digits"},
+    {"id": "D2", "cwe": 89, "file": "shop/views.py", "lines": [51, 51], "why": "ORM filter"},
+    {"id": "D3", "cwe": 89, "file": "shop/views.py", "lines": [111, 111], "why": "ORM filter on an integer path value"},
+    {"id": "D4", "cwe": 78, "file": "shop/views.py", "lines": [67, 67], "why": "list-form subprocess, no shell"},
+    {"id": "D5", "cwe": 22, "file": "shop/views.py", "lines": [78, 78], "why": "basename"},
+    {"id": "D6", "cwe": 601, "file": "shop/views.py", "lines": [89, 89], "why": "allowlist, reset on failure"},
+    {"id": "D7", "cwe": 601, "file": "shop/views.py", "lines": [42, 42], "why": "fixed /products/ prefix and an integer"},
+    {"id": "D8", "cwe": 79, "file": "shop/views.py", "lines": [68, 68], "why": "command output is escaped"},
+    {"id": "D9", "cwe": 79, "file": "shop/views.py", "lines": [93, 93], "why": "escaped in HTML body"},
+    {"id": "D10", "cwe": 79, "file": "shop/views.py", "lines": [56, 56], "why": "[0-9]{4}: four digits"},
+    {"id": "D11", "cwe": 79, "file": "shop/views.py", "lines": [63, 63], "why": "{{ out }} escapes"}
+  ]
+}

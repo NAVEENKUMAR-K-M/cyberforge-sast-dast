@@ -5,6 +5,7 @@ Usage:  python correlator/eval/score_links.py issues.json sast-engine/eval/keys/
 from __future__ import annotations
 
 import json
+import re
 import sys
 
 
@@ -15,9 +16,16 @@ def _code_match(finding, item) -> bool:
     return "lines" not in item or item["lines"][0] <= code["line"] <= item["lines"][1]
 
 
+def _shape(path: str) -> str:
+    """A route with every placeholder written `{}`: a crawl calls `/p/{id}` what the code calls `/p/{pid}`."""
+    return re.sub(r"\{[^}]*\}", "{}", path)
+
+
 def _runtime_match(finding, item) -> bool:
     route = finding["routes"][0] if finding["routes"] else None
-    return (route is not None and finding["cwe_family"] == f"CWE-{item['cwe']}" and route["path"].endswith(item["route"])
+    # A stored bug is found where it is written, and the key names that route when it differs from the read route.
+    wanted = _shape(item.get("write_route") or item["route"])
+    return (route is not None and finding["cwe_family"] == f"CWE-{item['cwe']}" and _shape(route["path"]).endswith(wanted)
             and finding["params"] and finding["params"][0]["name"] == item["param"]
             and item.get("selector") in (None, route["selector"]))
 

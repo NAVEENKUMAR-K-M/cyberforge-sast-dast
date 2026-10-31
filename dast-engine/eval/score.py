@@ -9,8 +9,15 @@ elapsed time, matching the targets in the PRD.
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
+
+
+def _shape(route_template: str) -> str:
+    """A route without its trailing slash and with every placeholder name dropped, so `/p/{id}` and
+    `/p/{pid}` are the same route."""
+    return re.sub(r"\{[^}]*\}", "{}", route_template).rstrip("/")
 
 
 def _matches(finding: dict, key_entry: dict) -> bool:
@@ -21,7 +28,7 @@ def _matches(finding: dict, key_entry: dict) -> bool:
         return False
     if key_entry.get("method") and finding["method"].upper() != key_entry["method"].upper():
         return False
-    if finding["route_template"].rstrip("/") != key_entry["route_template"].rstrip("/"):
+    if _shape(finding["route_template"]) != _shape(key_entry["route_template"]):
         return False
     if key_entry.get("param") and finding.get("param") != key_entry["param"]:
         return False

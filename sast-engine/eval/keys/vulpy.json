@@ -1,0 +1,23 @@
+{
+  "app": "benchmarks/external/vulpy/bad",
+  "note": "Labelled by reading the source at the pinned commit, before tuning the Python engine on it. Only bug classes this tool names are listed: Vulpy also has weak sessions, plain-text passwords and logic bugs. The engine's first run found the three SQL injections and the secrets and debug flags, but no routes under their blueprint prefixes and no stored XSS.",
+  "pairs": [
+    {"id": "V1", "cwe": 89, "file": "libuser.py", "lines": [12, 12], "route": "/user/login", "param": "username", "hard": "sink in a helper in another file, str.format"},
+    {"id": "V2", "cwe": 89, "file": "libuser.py", "lines": [25, 25], "route": "/user/create", "param": "username", "hard": "% formatting"},
+    {"id": "V3", "cwe": 89, "file": "libuser.py", "lines": [53, 53], "route": "/user/chpasswd", "param": "password"},
+    {"id": "V4", "cwe": 79, "file": "mod_posts.py", "route": "/posts/", "param": "text", "stored": true, "hard": "stored through bound parameters, printed by a template with | safe"}
+  ],
+  "code_only": [
+    {"id": "V5", "cwe": 798, "file": "vulpy.py", "lines": [16, 16]},
+    {"id": "V6", "cwe": 798, "file": "vulpy-ssl.py", "lines": [13, 13]},
+    {"id": "V7", "cwe": 489, "file": "vulpy.py"},
+    {"id": "V8", "cwe": 489, "file": "vulpy-ssl.py"},
+    {"id": "V9", "cwe": 330, "file": "libapi.py", "hard": "API key built from random.getrandbits"}
+  ],
+  "runtime_only": [],
+  "decoys": [
+    {"id": "D1", "cwe": 89, "file": "libposts.py", "why": "bound parameters"},
+    {"id": "D2", "cwe": 89, "file": "libmfa.py", "why": "bound parameters"},
+    {"id": "D3", "cwe": 89, "file": "libapi.py", "why": "no queries"}
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "target": "pyshop (sast-engine/benchmarks/pyshop), http://127.0.0.1:8089, debug off",
+  "expected": [
+    {"cwe": "CWE-89", "method": "GET", "route_template": "/api/orders", "param": "customer"},
+    {"cwe": "CWE-89", "method": "GET", "route_template": "/products/search", "param": "q"},
+    {"cwe": "CWE-89", "method": "POST", "route_template": "/api/orders", "param": "item"},
+    {"cwe": "CWE-89", "method": "POST", "route_template": "/auth/login", "param": "username"},
+    {"cwe": "CWE-89", "method": "GET", "route_template": "/api/orders/summary", "param": "sort"},
+    {"cwe": "CWE-89", "method": "GET", "route_template": "/products/by-category/{category}", "param": "category"},
+    {"cwe": "CWE-79", "method": "GET", "route_template": "/search", "param": "q"},
+    {"cwe": "CWE-79", "method": "POST", "route_template": "/products/{pid}/reviews", "param": "body"},
+    {"cwe": "CWE-79", "method": "POST", "route_template": "/contact", "param": "name"},
+    {"cwe": "CWE-79", "method": "GET", "route_template": "/gallery", "param": "img"},
+    {"cwe": "CWE-79", "method": "GET", "route_template": "/preview", "param": "title"},
+    {"cwe": "CWE-78", "route_template": "/tools/ping", "param": "host"},
+    {"cwe": "CWE-78", "method": "GET", "route_template": "/tools/lookup", "param": "domain"},
+    {"cwe": "CWE-78", "method": "GET", "route_template": "/api/convert", "param": "format"},
+    {"cwe": "CWE-78", "method": "POST", "route_template": "/admin/backup", "param": "label"},
+    {"cwe": "CWE-22", "method": "GET", "route_template": "/files/download", "param": "file"},
+    {"cwe": "CWE-22", "method": "GET", "route_template": "/pages", "param": "name"},
+    {"cwe": "CWE-22", "method": "GET", "route_template": "/files/invoice", "param": "id"},
+    {"cwe": "CWE-22", "method": "GET", "route_template": "/api/attachments", "param": "name"},
+    {"cwe": "CWE-601", "method": "GET", "route_template": "/go", "param": "url"},
+    {"cwe": "CWE-601", "method": "GET", "route_template": "/auth/logout", "param": "next"},
+    {"cwe": "CWE-601", "method": "POST", "route_template": "/cart/checkout", "param": "back"},
+    {"cwe": "CWE-601", "method": "GET", "route_template": "/lang", "param": "back"},
+    {"cwe": "CWE-1021", "method": "GET", "route_template": "/", "param": null},
+    {"cwe": "CWE-693", "method": "GET", "route_template": "/", "param": null}
+  ],
+  "safe_decoys": [
+    {"cwe": "CWE-89", "route_template": "/products/{pid}", "param": "pid"},
+    {"cwe": "CWE-89", "route_template": "/api/orders/{order_id}", "param": "order_id"},
+    {"cwe": "CWE-89", "route_template": "/products", "param": "sort"},
+    {"cwe": "CWE-79", "route_template": "/profile", "param": "name"},
+    {"cwe": "CWE-79", "route_template": "/export", "param": "q"},
+    {"cwe": "CWE-79", "route_template": "/api/orders", "param": "customer"},
+    {"cwe": "CWE-78", "route_template": "/tools/dns", "param": "host"},
+    {"cwe": "CWE-22", "route_template": "/files/report", "param": "name"},
+    {"cwe": "CWE-601", "route_template": "/welcome", "param": "next"}
+  ],
+  "notes": [
+    "Derived from sast-engine/eval/keys/pyshop.json, which eval/verify_pyshop.py proves true over HTTP. pyshop has no OpenAPI document and no debug output, so an error is a bare 500.",
+    "Written before tuning the DAST engine for Python/JSON apps, by the team that wrote it: read the scores as a best case.",
+    "S3 and C4 take JSON bodies; C4 (/admin/backup) isn't linked from any page, so crawl-only runs can't reach it.",
+    "The stored-XSS pair is graded at the write route, as the DVWA key does."
+  ]
+}

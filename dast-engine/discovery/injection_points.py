@@ -14,6 +14,7 @@ from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse, parse_qs, u
 
 from core.models import InjectionPoint, ParamLocation
 from discovery.crawler import CrawlResult
+from discovery.templates import normalize, path_index
 
 _NUMERIC_SEG = re.compile(r"^\d+$")
 _PATH_VALUE = re.compile(r"\{(\w+)\??\}")
@@ -133,6 +134,8 @@ def from_crawl(crawl_result: CrawlResult) -> list[InjectionPoint]:
         location = ParamLocation.BODY if form.method == "POST" else ParamLocation.QUERY
         for name, value in form.fields.items():
             ftype = form.field_types.get(name, "text")
+            if ftype == "hidden" and _TOKEN_FIELD.search(name):
+                continue  # a CSRF token is checked, not used: nothing to inject into
             if ftype in ("submit", "button", "hidden") and name.lower() not in ("id",):
                 # still record hidden fields as context, but they're rarely the
                 # injectable param of interest; keep them as low-priority tier-2.
@@ -198,5 +201,40 @@ def build_injection_points(
     if openapi_routes:
         points.extend(from_route_map(openapi_routes, base_url))
     if crawl_result:
-        points.extend(from_crawl(crawl_result))
+        # The same spot found by a crawl and by the code or a spec is one point. The crawl's copy is dropped,
+        # since the other source knows the real parameter names and types. A selector picks a page on a shared
+        # path, which a crawl can't tell apart, so those are kept.
+        known = {_spot(p): p for p in points if not p.selector}
+        for crawled in from_crawl(crawl_result):
+            mapped = known.get(_spot(crawled))
+            if mapped is None:
+                points.append(crawled)
+            else:
+                _carry_tokens(crawled, mapped)
     return dedupe_points(points)
+
+
+# Hidden fields that a server checks on every write: a request without them is refused before any code runs.
+_TOKEN_FIELD = re.compile(r"csrf|xsrf|_token$|^token$|authenticity|nonce|requestverification", re.I)
+
+
+def _carry_tokens(crawled: InjectionPoint, mapped: InjectionPoint) -> None:
+    """The crawl saw the real form, so its token fields (Laravel's `_token`, Django's `csrfmiddlewaretoken`) go with
+    the code's version of the same point, which would otherwise be refused with a 419 or 403."""
+    if crawled.method == "GET" or not crawled.body_template:
+        return
+    tokens = {name: value for name, value in crawled.body_template.items() if _TOKEN_FIELD.search(name) and value}
+    if not tokens:
+        return
+    location = mapped.param_location.value if hasattr(mapped.param_location, "value") else str(mapped.param_location)
+    if location in ("body", "json"):
+        mapped.body_template = {**tokens, **(mapped.body_template or {})}
+    else:
+        mapped.body_extras = {**tokens, **mapped.body_extras}
+
+
+def _spot(point: InjectionPoint) -> tuple:
+    """Where a point is, in terms that don't depend on what a tool called a placeholder."""
+    location = point.param_location.value if hasattr(point.param_location, "value") else str(point.param_location)
+    which = path_index(point.route_template, point.param) if location == "path" else point.param
+    return (point.method, normalize(point.route_template), location, which)

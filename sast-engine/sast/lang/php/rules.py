@@ -37,6 +37,7 @@ SINK_METHODS = {
     "real_query": (89, 0), "querysingle": (89, 0), "rawquery": (89, 0),
     "raw": (89, 0), "whereraw": (89, 0), "selectraw": (89, 0), "orderbyraw": (89, 0),
     "havingraw": (89, 0), "statement": (89, 0), "unprepared": (89, 0),
+    "download": (22, 0), "file": (22, 0),  # Laravel: response()->download($path), response()->file($path)
 }
 # Binding is the safe way to pass values, so a tainted value here is marked safe.
 BIND_FUNCS = {"mysqli_stmt_bind_param": 2, "pg_query_params": 2}

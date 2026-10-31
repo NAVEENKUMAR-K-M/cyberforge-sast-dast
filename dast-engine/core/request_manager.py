@@ -7,6 +7,7 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass
+from urllib.parse import unquote, urlsplit
 
 import httpx
 
@@ -27,10 +28,18 @@ class Budget:
         return self.remaining() <= 0
 
 
-class AdaptiveRateLimiter:
-    """Token-bucket-ish limiter that starts fast and backs off on errors/latency.
+OVERLOAD_STATUSES = {429, 502, 503, 504}
+# (cookie the app sets, header it expects the value back in)
+CSRF_COOKIES = (("XSRF-TOKEN", "X-XSRF-TOKEN"), ("csrftoken", "X-CSRFToken"))
 
-    start=25rps, halves on error-burst or p95>1s, floor=5rps.
+
+class AdaptiveRateLimiter:
+    """Token-bucket-ish limiter that starts fast, backs off when the server struggles, and speeds up again
+    once it has stopped struggling.
+
+    start=25rps, halves on error-burst or on a share of slow answers, floor=5rps. "Slow" is judged against
+    what that endpoint normally takes: a lookup that always waits four seconds on DNS isn't a server in
+    trouble, but a page that was quick and suddenly isn't is.
     """
 
     def __init__(self, start_rps: float = 25.0, floor_rps: float = 5.0, ceiling_rps: float = 25.0):
@@ -39,9 +48,11 @@ class AdaptiveRateLimiter:
         self.ceiling = ceiling_rps
         self._lock = asyncio.Lock()
         self._last = 0.0
-        self._recent_latencies: list[float] = []
+        self._typical: dict[str, float] = {}
+        self._recent_slow = 0
         self._recent_errors = 0
         self._recent_total = 0
+        self._recent_max = 0.0
 
     async def acquire(self) -> None:
         async with self._lock:
@@ -52,20 +63,26 @@ class AdaptiveRateLimiter:
                 await asyncio.sleep(wait)
             self._last = max(now, self._last + min_interval)
 
-    def record(self, elapsed: float, is_error: bool) -> None:
-        self._recent_latencies.append(elapsed)
+    def record(self, elapsed: float, is_error: bool, key: str | None = None) -> None:
+        typical = self._typical.get(key) if key is not None else None
+        # A first answer from an endpoint has nothing to be compared with, so only an extreme one counts.
+        slow = elapsed > 1.0 and (elapsed > 3 * typical if typical is not None else elapsed > 8.0)
+        if key is not None:
+            self._typical[key] = elapsed if typical is None else 0.7 * typical + 0.3 * elapsed
         self._recent_total += 1
-        if is_error:
-            self._recent_errors += 1
+        self._recent_slow += slow
+        self._recent_errors += is_error
+        self._recent_max = max(self._recent_max, elapsed)
         if self._recent_total >= 20:
-            p95 = sorted(self._recent_latencies)[int(len(self._recent_latencies) * 0.95) - 1]
             error_rate = self._recent_errors / self._recent_total
-            if p95 > 1.0 or error_rate > 0.2:
+            if self._recent_slow / self._recent_total > 0.05 or error_rate > 0.2:
                 self.rps = max(self.floor, self.rps / 2)
-                logger.info("Backing off rate to %.1f rps (p95=%.2fs, err_rate=%.2f)", self.rps, p95, error_rate)
-            self._recent_latencies.clear()
-            self._recent_errors = 0
-            self._recent_total = 0
+                logger.info("Backing off rate to %.1f rps (slow=%d/%d, err_rate=%.2f)", self.rps, self._recent_slow, self._recent_total, error_rate)
+            elif self.rps < self.ceiling:
+                self.rps = min(self.ceiling, self.rps * 1.5)
+                logger.info("Speeding up to %.1f rps", self.rps)
+            self._recent_slow = self._recent_errors = self._recent_total = 0
+            self._recent_max = 0.0
 
 
 class RequestManager:
@@ -139,6 +156,8 @@ class RequestManager:
 
         merged_headers = {**self.extra_headers, **(headers or {})}
         merged_cookies = {**self.cookies, **(cookies or {})}
+        if method.upper() not in ("GET", "HEAD", "OPTIONS"):
+            self._add_csrf_header(merged_headers)
         # Send cookies as a plain Cookie header rather than via httpx's
         # per-request `cookies=` (deprecated: it mutates client-wide jar
         # state in a way that's ambiguous for our single-target use).
@@ -170,11 +189,14 @@ class RequestManager:
             # connection failure.
             logger.debug("Request error %s %s: %s", method, url, exc)
             is_error = True
-            self.limiter.record(time.monotonic() - start, is_error)
+            self.limiter.record(time.monotonic() - start, is_error, key=urlsplit(url).path)
             return None
         elapsed = time.monotonic() - start
-        is_error = resp.status_code >= 500
-        self.limiter.record(elapsed, is_error)
+        # A plain 500 is how an app without debug output answers a broken query, so it is a finding's
+        # signal and says nothing about load. Only an overloaded server or a gateway in front of it asks us to slow down.
+        is_error = resp.status_code in OVERLOAD_STATUSES
+        # A serial request is a deliberate sleep payload: it is slow on purpose.
+        self.limiter.record(0.0 if serial else elapsed, is_error, key=urlsplit(url).path)
         self.latencies.append(elapsed)
 
         if (
@@ -187,6 +209,19 @@ class RequestManager:
                 # Do not follow off-scope redirects; caller still gets this response.
                 return resp
         return resp
+
+    def _add_csrf_header(self, headers: dict) -> None:
+        """Apps that hand out their CSRF token in a cookie (Laravel and Angular's XSRF-TOKEN, Django's csrftoken) expect
+        it back in a header on every write. A browser's script does that without being asked, so a scan has to."""
+        for cookie_name, header_name in CSRF_COOKIES:
+            if header_name in headers:
+                continue
+            try:
+                value = self._client.cookies.get(cookie_name)
+            except Exception:  # more than one cookie of that name; not worth guessing which
+                value = None
+            if value:
+                headers[header_name] = unquote(value)
 
     async def fresh_get(self, url: str) -> httpx.Response | None:
         """A GET as a first-time visitor, with no cookies. Some things only happen on a first

@@ -113,7 +113,7 @@ def create_app(report_path: Path | str = "out/issues.json", *, example: bool = F
         report = read_report()
         target_id = request.get("target_id")
         if target_id not in TARGETS or not TARGETS[target_id]["sast_supported"]:
-            raise HTTPException(400, "Choose a PHP target supported by the current SAST engine.")
+            raise HTTPException(400, "Choose a PHP or Python target supported by the SAST engine.")
         issue_id = request.get("issue_id")
         issue = next((item for item in report["issues"] if item["issue_id"] == issue_id), None)
         if not issue or issue["label"] != "Code only":

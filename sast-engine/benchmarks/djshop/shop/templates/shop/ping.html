@@ -1,0 +1,10 @@
+<!doctype html>
+<html><head><title>Ping</title></head>
+<body>
+<form method="post" action="/tools/ping/">
+  {% csrf_token %}
+  <input name="host" value="127.0.0.1">
+  <button>Ping</button>
+</form>
+{% if out %}<pre>{{ out }}</pre>{% endif %}
+</body></html>

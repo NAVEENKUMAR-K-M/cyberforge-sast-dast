@@ -22,7 +22,7 @@ from core.models import Baseline, Confidence, Evidence, Finding, InjectionPoint,
 from core.request_manager import RequestManager
 from discovery.baseline import is_similar_to_baseline
 from scanners.probes.base import Probe
-from scanners.probes.util import build_request, is_clean_request_noise, load_payloads
+from scanners.probes.util import build_request, is_clean_request_noise, load_payloads, random_marker
 from verification.response_diff import boolean_pair_confirms
 
 logger = logging.getLogger("dast.probes.sqli")
@@ -38,6 +38,12 @@ def _compile_signatures() -> list[re.Pattern]:
         for s in group:
             patterns.append(re.compile(re.escape(s), re.I))
     return patterns
+
+
+def _numeric_seed(point: InjectionPoint) -> bool:
+    """Whether the value this point normally carries is a whole number, or sits in the path where ids usually are."""
+    location = point.param_location.value if hasattr(point.param_location, "value") else str(point.param_location)
+    return str(point.seed_value).isdigit() or location == "path"
 
 
 class SqliProbe(Probe):
@@ -70,6 +76,13 @@ class SqliProbe(Probe):
             matched = self._match_error(resp.text)
             if matched and not await is_clean_request_noise(rm, point, matched):
                 return [self._finding(point, payload, "error-based", Confidence.CONFIRMED, resp.status_code, matched, resp.text, baseline)]
+
+        # --- Tier 1 (cont.): the quote differential, for apps that hide their errors ---
+        found = await self._quote_differential(rm, point)
+        if found is None and _numeric_seed(point):
+            found = await self._numeric_differential(rm, point)
+        if found:
+            return [found]
 
         if baseline is None:
             return []  # can't do boolean/diff comparisons without one
@@ -113,6 +126,54 @@ class SqliProbe(Probe):
                 return [finding]
 
         return []
+
+    async def _quote_differential(self, rm: RequestManager, point: InjectionPoint) -> Finding | None:
+        """With debug off, a broken query is a bare 500 with no database text. A lone quote that makes the
+        server fail while a paired quote and a harmless value both succeed is the query being built from the
+        input. All three must agree on the status that isn't the failing one, so a field that rejects odd
+        characters outright (every probe fails alike) stays silent, and so does an input that is parsed first."""
+        control = await self._send(rm, point, random_marker(prefix="ctrl", length=10))
+        lone = await self._send(rm, point, "'")
+        paired = await self._send(rm, point, "''")
+        if control is None or lone is None or paired is None:
+            return None
+        if lone.status_code < 500 or control.status_code >= 500 or paired.status_code != control.status_code:
+            return None
+        again = await self._send(rm, point, "'")  # a one-off failure proves nothing
+        if again is None or again.status_code != lone.status_code:
+            return None
+        return self._finding(
+            point, "' (lone quote) vs '' (paired quote)", "error-differential", Confidence.FIRM, lone.status_code,
+            f"status {lone.status_code} for a lone quote, {paired.status_code} for a paired quote and for a harmless value",
+            lone.text, None,
+        )
+
+    async def _numeric_differential(self, rm: RequestManager, point: InjectionPoint) -> Finding | None:
+        """For a number used without quotes (`WHERE id = 7`) a random control word breaks the query as well, so
+        the quote test above can't tell. Here the control is the real value: `7` works, `7-0` works the same
+        because the database does the sum, and `7'` fails. A number cast in code rejects `7-0` as it does `7'`,
+        so that stays silent."""
+        seed = point.seed_value if str(point.seed_value).isdigit() else "1"
+        control = await self._send(rm, point, seed)
+        arithmetic = await self._send(rm, point, f"{seed}-0")
+        lone = await self._send(rm, point, f"{seed}'")
+        if control is None or arithmetic is None or lone is None:
+            return None
+        if lone.status_code < 500 or control.status_code >= 500 or arithmetic.status_code != control.status_code:
+            return None
+        again = await self._send(rm, point, f"{seed}'")
+        if again is None or again.status_code != lone.status_code:
+            return None
+        return self._finding(
+            point, f"{seed}' vs {seed}-0", "error-differential", Confidence.FIRM, lone.status_code,
+            f"status {lone.status_code} for {seed}', {arithmetic.status_code} for {seed}-0 and for {seed}",
+            lone.text, None,
+        )
+
+    @staticmethod
+    async def _send(rm: RequestManager, point: InjectionPoint, value: str):
+        url, kwargs = build_request(point, value)
+        return await rm.send(point.method, url, **kwargs)
 
     async def _time_based(self, rm: RequestManager, point: InjectionPoint, baseline: Baseline) -> Finding | None:
         for template in self._payloads.get("time_based", []):

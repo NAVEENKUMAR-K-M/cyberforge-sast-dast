@@ -1,0 +1,23 @@
+{
+  "app": "benchmarks/external/vulnflask",
+  "note": "we45's Vulnerable-Flask-App, labelled by reading the source at the pinned commit. Its XXE (CWE-611) and JWT flaws are outside this tool's CWE list. The unsafe yaml.load reads a file the visitor uploaded, which needs file content to count as input; the engine does not follow that, and it is listed so the miss stays visible.",
+  "pairs": [
+    {"id": "F1", "cwe": 89, "file": "app/app.py", "lines": [265, 265], "route": "/search", "param": "search", "hard": "JSON body, % formatting, db.engine.execute"}
+  ],
+  "code_only": [
+    {"id": "F2", "cwe": 79, "file": "app/app.py", "lines": [114, 114], "hard": "template built from request.url inside an @app.errorhandler"},
+    {"id": "F3", "cwe": 327, "file": "app/app.py", "lines": [141, 141]},
+    {"id": "F4", "cwe": 798, "file": "app/app.py", "lines": [26, 26]},
+    {"id": "F5", "cwe": 798, "file": "app/app.py", "lines": [27, 27]},
+    {"id": "F6", "cwe": 798, "file": "app/app.py", "lines": [28, 28]},
+    {"id": "F7", "cwe": 798, "file": "app/app.py", "lines": [63, 63]},
+    {"id": "F8", "cwe": 502, "file": "app/app.py", "hard": "yaml.load of a file the visitor uploaded"}
+  ],
+  "runtime_only": [],
+  "decoys": [
+    {"id": "D1", "cwe": 79, "file": "app/app.py", "lines": [184, 192], "why": "JSON response, content type set after the object is built"},
+    {"id": "D2", "cwe": 89, "file": "app/app.py", "lines": [180, 183], "why": "SQLAlchemy filter_by"},
+    {"id": "D3", "cwe": 89, "file": "app/app.py", "lines": [210, 214], "why": "Query.get"},
+    {"id": "D4", "cwe": 22, "file": "app/app.py", "lines": [290, 330], "why": "secure_filename on the uploaded name"}
+  ]
+}

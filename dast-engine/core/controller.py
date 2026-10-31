@@ -19,7 +19,7 @@ from discovery.route_map_loader import load_route_map, load_sast_hints
 from results.normalizer import build_output, write_output
 from scanners.passive import PassiveScanner
 from scanners.probe_runner import run_probes
-from scanners.stored_marker import check_persistence, submit_markers
+from scanners.stored_marker import check_persistence, submit_markers, submit_point_markers
 
 logger = logging.getLogger("dast.controller")
 
@@ -92,8 +92,12 @@ async def run_scan(config: dict) -> dict:
 
         # --- Light stored-content check ---
         try:
+            skip = set() if config.get("allow_destructive") else {"DELETE"}
             submissions = await submit_markers(rm, crawl_result.forms)
+            submissions += await submit_point_markers(rm, points, skip)
             get_urls = [u for u in crawl_result.urls if u not in {f.action for f in crawl_result.forms}]
+            # Pages only the code or an API document knows about can echo a stored value too.
+            get_urls += sorted({p.baseline_url for p in points if p.method == "GET"} - set(get_urls))[:60]
             all_findings.extend(await check_persistence(rm, submissions, get_urls))
         except Exception:
             logger.exception("stored-marker check failed")
@@ -102,7 +106,9 @@ async def run_scan(config: dict) -> dict:
         active_backend = config.get("active_backend", "python")
         if active_backend == "python":
             hints = load_sast_hints(config.get("hints_path"))
-            all_findings.extend(await run_probes(rm, points, hints=hints, coverage=coverage, session=session))
+            all_findings.extend(await run_probes(rm, points, hints=hints, coverage=coverage, session=session,
+                                                 concurrency=int(config.get("probe_concurrency", 4)),
+                                                 skip_methods=set() if config.get("allow_destructive") else {"DELETE"}))
         elif active_backend == "zap":
             from scanners.zap_runner import ZapRunner
 

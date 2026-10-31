@@ -45,6 +45,10 @@ class RouteMap:
         return [r.to_json() for r in sorted(self.routes.values(), key=lambda r: (r.path, r.selector or ""))]
 
 
+# Files a framework runs while starting up. They declare routes; they are not pages (/web.php is not a URL).
+FRAMEWORK_BOOT = re.compile(r"(^|/)(routes/\w+\.php|bootstrap/(app|providers)\.php|database/(migrations|seeders|factories)/)")
+
+
 def find_entries(project: Project, edges: dict) -> list:
     """A file is an entry point if the web can run it and no other file includes it."""
     included = set()
@@ -52,7 +56,7 @@ def find_entries(project: Project, edges: dict) -> list:
         included.update(t for t in targets if t != source)
     entries = []
     for rel, sf in project.files.items():
-        if rel in included or not sf.has_top_level_code or sf.direct_guard:
+        if rel in included or not sf.has_top_level_code or sf.direct_guard or FRAMEWORK_BOOT.search(rel):
             continue
         if project.web_path(rel) is None or project.is_blocked(rel):
             continue

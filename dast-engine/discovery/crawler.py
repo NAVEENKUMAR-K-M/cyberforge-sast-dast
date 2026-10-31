@@ -61,12 +61,24 @@ async def _fetch_robots_sitemap(rm: RequestManager, base_url: str, seen: set[str
             seen.add(urljoin(base_url, match.group(1)))
 
 
+# Where frameworks publish their API description: FastAPI, Flask-RESTX/flasgger/smorest, Spring, DRF, Rails.
+SPEC_PATHS = (
+    "/openapi.json", "/swagger.json", "/v3/api-docs", "/api-docs", "/openapi.yaml", "/openapi.yml", "/swagger.yaml",
+    "/api/openapi.json", "/api/swagger.json", "/api/v1/openapi.json", "/api/docs/openapi.json", "/docs/openapi.json",
+    "/swagger/v1/swagger.json", "/v2/api-docs", "/apispec_1.json", "/api/schema/?format=json", "/schema/?format=json",
+)
+
+
 async def _fetch_api_specs(rm: RequestManager, base_url: str) -> list[str]:
     specs = []
-    for path in ("/openapi.json", "/swagger.json", "/v3/api-docs", "/api-docs"):
+    for path in SPEC_PATHS:
         url = urljoin(base_url, path)
         resp = await rm.get(url)
-        if resp is not None and resp.status_code == 200 and "json" in resp.headers.get("content-type", ""):
+        if resp is None or resp.status_code != 200:
+            continue
+        content_type = resp.headers.get("content-type", "").lower()
+        # A single-page app answers every unknown path with its HTML shell, which says nothing about an API.
+        if "json" in content_type or "yaml" in content_type or (path.endswith((".yaml", ".yml")) and "html" not in content_type):
             specs.append(url)
     return specs
 

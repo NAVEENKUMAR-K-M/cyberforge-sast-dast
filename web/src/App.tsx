@@ -479,7 +479,7 @@ function RoutesView({ scanId }: { scanId: string | null }) {
   const shown = routes.filter((route) => `${route.path} ${route.selector ?? ""} ${route.handler.file} ${route.handler.function} ${route.methods.join(" ")} ${route.params.map((param) => param.name).join(" ")}`.toLowerCase().includes(query));
   return (
     <div className="routes-view">
-      <div className="section-intro"><h2>Source route map</h2><p>URL patterns discovered by SAST and the PHP file, function, and line range that handle them.</p></div>
+      <div className="section-intro"><h2>Source route map</h2><p>URL patterns discovered by SAST and the source file, function, and line range that handle them.</p></div>
       <label className="route-search">Filter routes<input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Path, method, handler, parameter" /></label>
       {loading && <p>Loading route map…</p>}
       {!loading && !available && <div className="empty-list"><h3>No route map for this report</h3><p>Run SAST on a supported source folder to generate routes.json. Juice Shop currently supports DAST only.</p></div>}

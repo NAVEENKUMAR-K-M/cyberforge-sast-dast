@@ -280,7 +280,7 @@ export function ScanLauncher({ onReportReady }: { onReportReady: () => void }) {
           <div className="scan-engine-options" role="group" aria-label="Scanners to run">
             <label className="scan-check">
               <input type="checkbox" checked={runSast} disabled={!selectedTarget?.sast_supported || !selectedTarget.source_available} onChange={(event) => setRunSast(event.target.checked)} />
-              <span><strong>SAST</strong><small>{selectedTarget?.sast_supported ? (selectedTarget.source_available ? `${selectedTarget.language} source` : "Source checkout missing") : "PHP engine; JavaScript is not supported"}</small></span>
+              <span><strong>SAST</strong><small>{selectedTarget?.sast_supported ? (selectedTarget.source_available ? `${selectedTarget.language} source` : "Source checkout missing") : "PHP and Python engines; JavaScript is not supported"}</small></span>
             </label>
             <label className="scan-check">
               <input type="checkbox" checked={runDast} onChange={(event) => setRunDast(event.target.checked)} />

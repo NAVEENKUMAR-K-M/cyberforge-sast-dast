@@ -36,7 +36,7 @@ TARGETS = {
         "language": "javascript",
         "sast_supported": False,
         "config": ROOT / "dast-engine" / "config.yaml",
-        "description": "DAST is supported. The current SAST engine analyzes PHP, not JavaScript.",
+        "description": "DAST is supported. The SAST engine analyzes PHP and Python, not JavaScript.",
     },
     "benchmark_shop": {
         "name": "CyberForge Benchmark Shop",
@@ -46,6 +46,15 @@ TARGETS = {
         "sast_supported": True,
         "config": ROOT / "dast-engine" / "config.yaml",
         "description": "Bundled PHP target. Start it with the repository Docker Compose file.",
+    },
+    "python_shop": {
+        "name": "CyberForge Python Shop",
+        "url": "http://127.0.0.1:8089",
+        "source": ROOT / "sast-engine" / "benchmarks" / "pyshop",
+        "language": "python",
+        "sast_supported": True,
+        "config": ROOT / "dast-engine" / "pyshop.yaml",
+        "description": "Bundled Flask target. Start it with sast-engine/benchmarks/pyshop/docker-compose.yml.",
     },
 }
 
@@ -189,7 +198,7 @@ class ScanManager:
         if not run_sast and not run_dast:
             raise ValueError("Choose SAST, DAST, or both.")
         if run_sast and not target["sast_supported"]:
-            raise ValueError("The current SAST engine supports PHP only; Juice Shop can run DAST only.")
+            raise ValueError("The SAST engine supports PHP and Python; Juice Shop can run DAST only.")
         if run_sast and not target["source"].is_dir():
             raise ValueError(f"Source folder is missing: {target['source']}")
         backend = request.get("active_backend", "python")
@@ -346,7 +355,8 @@ class ScanManager:
 
             if job["options"]["run_sast"]:
                 job["stage"] = "Source analysis"
-                args = ["-m", "sast.cli", "scan", str(target["source"]), "--out", str(folder / "sast")]
+                args = ["-m", "sast.cli", "scan", str(target["source"]), "--out", str(folder / "sast"),
+                        "--language", target["language"]]
                 if job["options"]["sarif"]:
                     args.append("--sarif")
                 if job["options"]["web_root"]:
