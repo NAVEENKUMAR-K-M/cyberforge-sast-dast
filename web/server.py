@@ -140,7 +140,8 @@ def create_app(report_path: Path | str = "out/issues.json", *, example: bool = F
     async def verify_code_finding(request: dict):
         report = read_report()
         target_id = request.get("target_id")
-        if target_id not in TARGETS or not TARGETS[target_id]["sast_supported"]:
+        target = scans.target_for(target_id)
+        if target is None or not target["sast_supported"]:
             raise HTTPException(400, "Choose a PHP or Python target supported by the SAST engine.")
         issue_id = request.get("issue_id")
         issue = next((item for item in report["issues"] if item["issue_id"] == issue_id), None)
@@ -166,17 +167,18 @@ def create_app(report_path: Path | str = "out/issues.json", *, example: bool = F
             target_url = scans.validate_target_url(request.get("target_url", report["inputs"]["dast"].get("target", "")))
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from None
-        if urlsplit(target_url).port != urlsplit(TARGETS[target_id]["url"]).port:
-            raise HTTPException(400, f"{TARGETS[target_id]['name']} verification must use local port {urlsplit(TARGETS[target_id]['url']).port}.")
+        if target_id in TARGETS and urlsplit(target_url).port != urlsplit(target["url"]).port:
+            raise HTTPException(400, f"{target['name']} verification must use local port {urlsplit(target['url']).port}.")
         recorded_target = urlsplit(report["inputs"]["dast"].get("target", ""))
         if recorded_target.netloc and recorded_target.netloc.lower() != urlsplit(target_url).netloc.lower():
             raise HTTPException(400, "Verification must use the same local host and port as this report.")
 
-        config = TARGETS[target_id]["config"]
         args = [str(ROOT / "dast-engine" / "main.py"), "verify", "--target", target_url,
-                "--config", str(config), "--cwe", code_finding["cwe"],
+                "--cwe", code_finding["cwe"],
                 "--method", (route.get("methods") or ["GET"])[0], "--route", route["path"],
                 "--param", param["name"], "--param-location", location]
+        if target["config"]:
+            args += ["--config", str(target["config"])]
         if route.get("selector"):
             args += ["--selector", route["selector"]]
         try:
@@ -376,11 +378,13 @@ def main():
     parser.add_argument("--report", default="out/issues.json", help="Correlator JSON report, relative to the current directory")
     parser.add_argument("--example", action="store_true", help="Open the bundled, clearly labelled example report")
     parser.add_argument("--port", default=8000, type=int)
+    parser.add_argument("--host", default="127.0.0.1",
+                        help="Address to bind. Keep 127.0.0.1 unless running in a container, where Docker publishes the port on loopback only")
     args = parser.parse_args()
     import uvicorn
 
     uvicorn.run(create_app(WEB / "example.issues.json" if args.example else args.report, example=args.example),
-                host="127.0.0.1", port=args.port)
+                host=args.host, port=args.port)
 
 
 if __name__ == "__main__":

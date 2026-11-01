@@ -1,0 +1,30 @@
+# Keep the build context small and keep secrets and results out of the image.
+.git
+.gitignore
+.vscode
+.pytest_cache
+**/__pycache__
+**/*.pyc
+**/.venv
+**/venv
+**/*.egg-info
+**/node_modules
+**/*.tsbuildinfo
+
+# Secrets and results
+.env
+.env.*
+!.env.example
+out
+**/output
+
+# Built inside the image
+web/dist
+
+# Large or unrelated material. The demo apps in compose.yaml build from their own folders, with their own contexts.
+benchmarks
+research_notes
+reports
+sast-engine/benchmarks
+sast-engine/out
+*.pdf

@@ -13,11 +13,16 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from cyberforge.runtime import (  # noqa: E402
+    CUSTOM_LANGUAGES, CUSTOM_TARGET_ID, allowed_hosts, custom_only, python_for, resolve_source, workspace_root,
+)
+
 OUT = ROOT / "out" / "scans"
-VENV_BIN = "Scripts" if sys.platform == "win32" else "bin"
-VENV_PYTHON = "python.exe" if sys.platform == "win32" else "python"
-SAST_PYTHON = ROOT / "sast-engine" / ".venv" / VENV_BIN / VENV_PYTHON
-DAST_PYTHON = ROOT / "dast-engine" / ".venv" / VENV_BIN / VENV_PYTHON
+SAST_PYTHON = python_for("sast")
+DAST_PYTHON = python_for("dast")
 PYTHON = sys.executable
 
 TARGETS = {
@@ -157,18 +162,57 @@ class ScanManager:
 
     def targets(self) -> list[dict]:
         result = []
-        for target_id, target in TARGETS.items():
-            source = target["source"]
-            result.append({
-                "id": target_id,
-                "name": target["name"],
-                "url": target["url"],
-                "language": target["language"],
-                "sast_supported": target["sast_supported"],
-                "source_available": source.is_dir(),
-                "description": target["description"],
-            })
+        if not custom_only():
+            for target_id, target in TARGETS.items():
+                source = target["source"]
+                result.append({
+                    "id": target_id,
+                    "name": target["name"],
+                    "url": target["url"],
+                    "language": target["language"],
+                    "sast_supported": target["sast_supported"],
+                    "source_available": source.is_dir(),
+                    "description": target["description"],
+                })
+        root = workspace_root()
+        result.append({
+            "id": CUSTOM_TARGET_ID,
+            "name": "Custom application",
+            "url": "",
+            "language": "auto",
+            "sast_supported": True,
+            "source_available": True,
+            "custom": True,
+            "default_source": str(root) if root else "",
+            "description": "Scan any application on this machine: give its source folder and the URL where it runs. "
+                           + (f"The source must be inside {root}. " if root else "") + "Untick SAST to run only the runtime scan, or DAST for only the source scan.",
+        })
         return result
+
+    def target_for(self, target_id: str | None) -> dict | None:
+        """The target record for a built-in id, or, for a custom run, the one stored on the job whose report is open."""
+        if target_id in TARGETS:
+            return TARGETS[target_id]
+        if target_id != CUSTOM_TARGET_ID:
+            return None
+        job = self.jobs.get(self.latest_job or "")
+        spec = (job or {}).get("target_spec")
+        return self._spec_target(spec) if spec else None
+
+    @staticmethod
+    def _spec_target(spec: dict) -> dict:
+        return {"name": spec["name"], "url": spec.get("url", ""), "source": Path(spec["source"]) if spec.get("source") else None,
+                "language": spec.get("language", "auto"), "sast_supported": True, "config": None, "description": "Custom application"}
+
+    @classmethod
+    def _custom_target(cls, request: dict, run_sast: bool, url: str) -> tuple[dict, dict]:
+        language = request.get("language", "auto")
+        if language not in CUSTOM_LANGUAGES:
+            raise ValueError("Choose auto, php or python as the source language.")
+        source = resolve_source(request.get("source_path")) if run_sast else None
+        label = source.name if source else (urlsplit(url).netloc or "custom")
+        spec = {"name": f"Custom application ({label})", "source": str(source) if source else "", "language": language, "url": url}
+        return cls._spec_target(spec), spec
 
     @staticmethod
     def validate_target_url(value: str) -> str:
@@ -178,8 +222,8 @@ class ScanManager:
         if parsed.scheme not in {"http", "https"} or parsed.username or parsed.password:
             raise ValueError("Use an http(s) URL without embedded credentials.")
         host = (parsed.hostname or "").lower()
-        if host not in {"localhost", "127.0.0.1"}:
-            raise ValueError("For safety, scans can target only localhost or 127.0.0.1.")
+        if host not in allowed_hosts():
+            raise ValueError("For safety, scans can target only this machine: " + ", ".join(sorted(allowed_hosts())) + ".")
         try:
             port = parsed.port
         except ValueError:
@@ -214,21 +258,28 @@ class ScanManager:
 
     async def start(self, request: dict) -> dict:
         target_id = request.get("target_id")
-        if target_id not in TARGETS:
-            raise ValueError("Choose one of the available local test applications.")
-        target = TARGETS[target_id]
-        url = self.validate_target_url(request.get("target_url", target["url"]))
-        expected_port = urlsplit(target["url"]).port
-        if urlsplit(url).port != expected_port:
-            raise ValueError(f"{target['name']} scans must use its configured local port {expected_port}.")
         run_sast = request.get("run_sast") is True
         run_dast = request.get("run_dast") is True
         if not run_sast and not run_dast:
             raise ValueError("Choose SAST, DAST, or both.")
-        if run_sast and not target["sast_supported"]:
-            raise ValueError("The SAST engine supports PHP and Python; Juice Shop can run DAST only.")
-        if run_sast and not target["source"].is_dir():
-            raise ValueError(f"Source folder is missing: {target['source']}")
+        target_spec = None
+        if target_id == CUSTOM_TARGET_ID:
+            # A custom application has no fixed port, so the only gates are the host allow-list and, for the
+            # source, the workspace folder. DAST gets no config file, so its scope is exactly this one target.
+            url = self.validate_target_url(request.get("target_url", "")) if run_dast else ""
+            target, target_spec = self._custom_target(request, run_sast, url)
+        else:
+            if target_id not in TARGETS or custom_only():
+                raise ValueError("Choose one of the available local test applications.")
+            target = TARGETS[target_id]
+            url = self.validate_target_url(request.get("target_url", target["url"]))
+            expected_port = urlsplit(target["url"]).port
+            if urlsplit(url).port != expected_port:
+                raise ValueError(f"{target['name']} scans must use its configured local port {expected_port}.")
+            if run_sast and not target["sast_supported"]:
+                raise ValueError("The SAST engine supports PHP and Python; Juice Shop can run DAST only.")
+            if run_sast and not target["source"].is_dir():
+                raise ValueError(f"Source folder is missing: {target['source']}")
         backend = request.get("active_backend", "python")
         if backend not in {"python", "none", "zap", "nuclei"}:
             raise ValueError("Choose a supported DAST backend.")
@@ -279,6 +330,8 @@ class ScanManager:
             "report_path": str(folder / "issues.json"),
             "gate": None,
         }
+        if target_spec:
+            job["target_spec"] = target_spec
         async with self.lock:
             active = [j for j in self.jobs.values() if j["status"] in {"queued", "running", "stopping"}]
             if active:
@@ -322,12 +375,16 @@ class ScanManager:
         sast_target = report.get("inputs", {}).get("sast", {}).get("target")
         if not sast_target:
             raise ValueError("This report has no source folder for the bounded investigation loop.")
-        source_path = Path(sast_target)
-        source_root = (source_path if source_path.is_absolute() else ROOT / source_path).resolve()
-        try:
-            source_root.relative_to(ROOT.resolve())
-        except ValueError:
-            raise ValueError("Investigation source must be inside this CyberForge workspace.") from None
+        custom_spec = original.get("target_spec")
+        if custom_spec and custom_spec.get("source"):
+            source_root = Path(custom_spec["source"]).resolve()   # checked against the workspace when the scan started
+        else:
+            source_path = Path(sast_target)
+            source_root = (source_path if source_path.is_absolute() else ROOT / source_path).resolve()
+            try:
+                source_root.relative_to(ROOT.resolve())
+            except ValueError:
+                raise ValueError("Investigation source must be inside this CyberForge workspace.") from None
         if not source_root.is_dir():
             raise ValueError("The scanned source folder is no longer available.")
         runtime_target = report.get("inputs", {}).get("dast", {}).get("target", "")
@@ -358,6 +415,8 @@ class ScanManager:
             "report_path": str(folder / "issues.json"),
             "gate": None,
         }
+        if custom_spec:
+            job["target_spec"] = custom_spec
         async with self.lock:
             active = [j for j in self.jobs.values() if j["status"] in {"queued", "running", "stopping"}]
             if active:
@@ -398,7 +457,8 @@ class ScanManager:
 
     def record_verification(self, target_id: str, target_url: str, report_path: Path, issue_id: str, elapsed_seconds: float) -> dict:
         scan_id = "verify-" + uuid.uuid4().hex[:10]
-        target = TARGETS[target_id]
+        target = self.target_for(target_id)
+        custom_spec = (self.jobs.get(self.latest_job or "") or {}).get("target_spec") if target_id == CUSTOM_TARGET_ID else None
         job = {
             "id": scan_id,
             "target_id": target_id,
@@ -416,6 +476,8 @@ class ScanManager:
             "report_path": str(report_path),
             "gate": None,
         }
+        if custom_spec:
+            job["target_spec"] = custom_spec
         self.jobs[scan_id] = job
         self.latest_report = report_path
         self.latest_job = scan_id
@@ -480,14 +542,16 @@ class ScanManager:
                 sast_hints = folder / "sast" / "hints.json"
             else:
                 sast_common.write_text(json.dumps({"schema_version": "1.0", "source": "sast", "tool": "cyberforge-sast",
-                    "target": str(target["source"]), "stats": {"files": 0, "entry_points": 0, "routes": 0, "seconds": 0}, "findings": []}, indent=2), encoding="utf-8")
+                    "target": str(target["source"] or ""), "stats": {"files": 0, "entry_points": 0, "routes": 0, "seconds": 0}, "findings": []}, indent=2), encoding="utf-8")
 
             if job["options"]["run_dast"]:
                 job["stage"] = "Runtime analysis"
                 args = [str(ROOT / "dast-engine" / "main.py"), "scan", "--target", url,
-                        "--config", str(target["config"]), "--output", str(dast_native),
+                        "--output", str(dast_native),
                         "--active-backend", job["options"]["active_backend"],
                         "--deadline", str(job["options"]["deadline_seconds"])]
+                if target["config"]:   # a custom application has none: DAST then scopes itself to exactly this target
+                    args += ["--config", str(target["config"])]
                 if job["options"]["run_sast"] and job["options"]["use_route_map"]:
                     args += ["--route-map", str(sast_routes)]
                 if job["options"]["run_sast"] and job["options"]["use_sast_hints"]:
@@ -520,15 +584,16 @@ class ScanManager:
             # no cost; it only widens what round 1 already does safely with no third party involved.
             investigation_included = False
             if job["options"]["run_sast"] and job["options"]["run_dast"]:
-                args += ["--investigate", "--max-cases", "20", "--budget", "180",
-                         "--dast-python", str(DAST_PYTHON), "--dast-config", str(target["config"])]
+                args += ["--investigate", "--max-cases", "20", "--budget", "180", "--dast-python", str(DAST_PYTHON)]
+                if target["config"]:
+                    args += ["--dast-config", str(target["config"])]
                 investigation_included = True
                 from correlator.env import load_env
                 from correlator.planner import PROVIDERS
 
                 load_env()
                 provider = next((p for p in ("groq", "openai") if p in PROVIDERS and os.environ.get(PROVIDERS[p][1])), None)
-                if provider:
+                if provider and request.get("use_ai") is not False:
                     args += ["--planner", provider, "--source-root", str(target["source"])]
             job["options"]["investigation_included"] = investigation_included
             await self._command(scan_id, "Correlation", Path(PYTHON), args, ROOT)
@@ -579,12 +644,14 @@ class ScanManager:
                 if not candidate.is_file():
                     raise RuntimeError("The original SAST or DAST report is no longer available.")
 
-            target = TARGETS[original["target_id"]]
+            target = TARGETS.get(original["target_id"]) or self._spec_target(original["target_spec"])
             args = ["-m", "correlator.cli", "--sast", str(sast_path), "--dast", str(dast_path),
                     "--out", str(folder / "issues.json"), "--investigate", "--planner",
                     job["options"]["provider"], "--source-root", str(source_root),
                     "--dast-engine", str(ROOT / "dast-engine"), "--dast-python", str(DAST_PYTHON),
-                    "--dast-config", str(target["config"]), "--max-cases", "20", "--budget", "180"]
+                    "--max-cases", "20", "--budget", "180"]
+            if target["config"]:
+                args += ["--dast-config", str(target["config"])]
             if job["options"].get("model"):
                 args += ["--planner-model", job["options"]["model"]]
             job["stage"] = "AI-assisted bounded retest and correlation"

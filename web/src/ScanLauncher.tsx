@@ -10,6 +10,8 @@ type Target = {
   sast_supported: boolean;
   source_available: boolean;
   description: string;
+  custom?: boolean;
+  default_source?: string;
 };
 type ScanJob = {
   id: string;
@@ -53,6 +55,8 @@ export function ScanLauncher({ onReportReady }: { onReportReady: () => void }) {
   const [history, setHistory] = useState<ScanJob[]>([]);
   const [targetId, setTargetId] = useState("dvwa");
   const [targetUrl, setTargetUrl] = useState("http://localhost:8080");
+  const [sourcePath, setSourcePath] = useState("");
+  const [language, setLanguage] = useState("auto");
   const [runSast, setRunSast] = useState(true);
   const [runDast, setRunDast] = useState(true);
   const [backend, setBackend] = useState("python");
@@ -107,8 +111,9 @@ export function ScanLauncher({ onReportReady }: { onReportReady: () => void }) {
         if (first) {
           setTargetId(first.id);
           setTargetUrl(first.url);
+          setSourcePath(first.default_source ?? "");
           setRunSast(first.sast_supported && first.source_available);
-          setUseRouteMap(first.id === "benchmark_shop");
+          setUseRouteMap(first.id === "benchmark_shop" || Boolean(first.custom));
         }
       } catch (e) {
         setError(e instanceof Error ? e.message : "Could not load scan options.");
@@ -149,6 +154,7 @@ export function ScanLauncher({ onReportReady }: { onReportReady: () => void }) {
         body: JSON.stringify({
           target_id: targetId,
           target_url: targetUrl,
+          ...(selectedTarget?.custom ? { source_path: sourcePath, language } : {}),
           run_sast: runSast,
           run_dast: runDast,
           active_backend: backend,
@@ -218,11 +224,14 @@ export function ScanLauncher({ onReportReady }: { onReportReady: () => void }) {
     setTargetId(id);
     if (next) {
       setTargetUrl(next.url);
+      setSourcePath(next.default_source ?? "");
+      setLanguage("auto");
       setRunSast(next.sast_supported && next.source_available);
       // The benchmark shop's interesting handlers are not all reachable from
-      // its home page. Use its SAST route map by default; DVWA's much larger
+      // its home page. Use its SAST route map by default, and for a custom
+      // application, whose pages we can't know in advance; DVWA's much larger
       // map stays opt-in so its default scan can finish within the normal budget.
-      setUseRouteMap(id === "benchmark_shop");
+      setUseRouteMap(id === "benchmark_shop" || Boolean(next.custom));
       setDeadline(480);
     }
   }
@@ -241,9 +250,9 @@ export function ScanLauncher({ onReportReady }: { onReportReady: () => void }) {
         <div>
           <div className="eyebrow">LOCAL TEST APPLICATIONS</div>
           <h2 id="scan-console-title">Run a scan</h2>
-          <p>Start the selected test app locally first, configure the analysis, then run SAST and/or DAST.</p>
+          <p>Start the application locally first, configure the analysis, then run SAST and/or DAST.</p>
         </div>
-        <span className="local-badge">Loopback only</span>
+        <span className="local-badge">This machine only</span>
       </div>
 
       <form className="scan-form" onSubmit={(event) => void startScan(event)}>
@@ -256,8 +265,24 @@ export function ScanLauncher({ onReportReady }: { onReportReady: () => void }) {
           </label>
           <label>
             Runtime URL
-            <input value={targetUrl} onChange={(event) => setTargetUrl(event.target.value)} placeholder="http://localhost:8080" />
+            <input value={targetUrl} onChange={(event) => setTargetUrl(event.target.value)} placeholder={selectedTarget?.custom ? "http://localhost:8081, or http://host.docker.internal:8081 in Docker" : "http://localhost:8080"} />
           </label>
+          {selectedTarget?.custom && (
+            <>
+              <label>
+                Source folder
+                <input value={sourcePath} onChange={(event) => setSourcePath(event.target.value)} placeholder={selectedTarget.default_source || "/path/to/the/application/source"} />
+              </label>
+              <label>
+                Source language
+                <select value={language} onChange={(event) => setLanguage(event.target.value)}>
+                  <option value="auto">Detect automatically</option>
+                  <option value="php">PHP</option>
+                  <option value="python">Python</option>
+                </select>
+              </label>
+            </>
+          )}
           <div className="scan-engine-options" role="group" aria-label="Scanners to run">
             <label className="scan-check">
               <input type="checkbox" checked={runSast} disabled={!selectedTarget?.sast_supported || !selectedTarget.source_available} onChange={(event) => setRunSast(event.target.checked)} />

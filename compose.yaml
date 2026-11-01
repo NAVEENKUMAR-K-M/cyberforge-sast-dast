@@ -1,0 +1,69 @@
+# CyberForge with Docker Compose.
+#
+#   cp .env.example .env                              # optional: add GROQ_API_KEY for the AI-assisted step
+#   docker compose up -d --build                      # workspace at http://127.0.0.1:8000
+#   TARGET_SOURCE=/path/to/app/source docker compose up -d
+#   docker compose run --rm scan scan --source . --target http://host.docker.internal:8081
+#   docker compose --profile demo up -d               # our two demo apps (8088 and 8089), for a try-out
+#
+# The application you scan runs on YOUR machine, outside this file; the tool reaches it as host.docker.internal.
+# Every published port is bound to 127.0.0.1 only: the demo apps are deliberately vulnerable.
+name: cyberforge
+
+services:
+  ui:
+    image: cyberforge
+    build: .
+    entrypoint: ["python", "-m", "web.server", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "127.0.0.1:${CYBERFORGE_PORT:-8000}:8000"   # set CYBERFORGE_PORT in .env if 8000 is taken
+    environment:
+      CYBERFORGE_ALLOWED_HOSTS: localhost,127.0.0.1,host.docker.internal
+      CYBERFORGE_WORKSPACE: /workspace
+      CYBERFORGE_CUSTOM_ONLY: "1"   # the built-in demo targets point at 127.0.0.1, which inside a container is the container itself
+    env_file:
+      - path: .env
+        required: false
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # Linux; Docker Desktop already provides the name
+    volumes:
+      - ${TARGET_SOURCE:-./workspace}:/workspace:ro
+      - ./out:/app/out
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/api/targets"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+
+  # One-shot command line: docker compose run --rm scan scan --source . --target http://host.docker.internal:8081
+  # (--source . is the mounted folder; a leading "/" would be rewritten by Git Bash on Windows)
+  scan:
+    image: cyberforge
+    build: .
+    profiles: [cli]
+    entrypoint: ["python", "-m", "cyberforge"]
+    environment:
+      CYBERFORGE_ALLOWED_HOSTS: localhost,127.0.0.1,host.docker.internal
+      CYBERFORGE_WORKSPACE: /workspace
+    env_file:
+      - path: .env
+        required: false
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ${TARGET_SOURCE:-./workspace}:/workspace:ro
+      - ./out:/app/out
+
+  # Demo targets to try the tool without any other setup. Start with:  docker compose --profile demo up -d
+  shop:
+    profiles: [demo]
+    build: sast-engine/benchmarks/shop
+    ports:
+      - "127.0.0.1:8088:80"
+
+  pyshop:
+    profiles: [demo]
+    build: sast-engine/benchmarks/pyshop
+    ports:
+      - "127.0.0.1:8089:8089"

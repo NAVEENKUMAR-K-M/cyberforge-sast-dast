@@ -231,6 +231,44 @@ describe("analyst workspace", () => {
     expect(within(detail).getByText(/an AI provider proposed/)).toBeTruthy();
   });
 
+  it("scans a custom application from its source folder and URL", async () => {
+    const posted: Record<string, unknown>[] = [];
+    const queued = {
+      id: "j1", target_name: "Custom application (shop)", target_url: "http://host.docker.internal:8081", status: "queued",
+      stage: "Queued", created_at: "2026-11-01T00:00:00Z", started_at: null, completed_at: null,
+      options: { run_sast: true, run_dast: true }, logs: [], error: null, report_path: "out/scans/j1/issues.json", gate: null,
+    };
+    const custom = {
+      id: "custom", name: "Custom application", url: "", language: "auto", sast_supported: true, source_available: true,
+      custom: true, default_source: "/workspace", description: "Scan any application on this machine.",
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        const path = String(url);
+        if (path.startsWith("/api/targets")) return { ok: true, json: async () => ({ targets: [custom] }) };
+        if (path === "/api/scans" && init?.method === "POST") {
+          posted.push(JSON.parse(String(init.body)));
+          return { ok: true, json: async () => queued };
+        }
+        if (path.startsWith("/api/scans")) return { ok: true, json: async () => ({ scans: [] }) };
+        return { ok: true, json: async () => data };
+      }),
+    );
+    const user = userEvent.setup();
+    render(<App />);
+    const source = (await screen.findByLabelText("Source folder")) as HTMLInputElement;
+    expect(source.value).toBe("/workspace");
+    await user.type(screen.getByLabelText("Runtime URL"), "http://host.docker.internal:8081");
+    await user.selectOptions(screen.getByLabelText("Source language"), "python");
+    await user.click(screen.getByRole("button", { name: /Start scan/ }));
+    await waitFor(() => expect(posted).toHaveLength(1));
+    expect(posted[0]).toMatchObject({
+      target_id: "custom", source_path: "/workspace", language: "python", target_url: "http://host.docker.internal:8081",
+      run_sast: true, run_dast: true, use_route_map: true,
+    });
+  });
+
   it("explains report-loading failures and offers retry", async () => {
     // Only the report fails. The scan launcher's own requests succeed, so only the report view shows an alert.
     vi.stubGlobal(

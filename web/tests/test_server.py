@@ -152,3 +152,137 @@ def test_ai_status_can_report_missing_provider_without_secret_material(monkeypat
     assert response.status_code == 200
     assert response.json()["ready"] is False
     assert all(not provider["configured"] for provider in response.json()["providers"])
+
+
+# ---- custom application: scan something that isn't one of the built-in demo apps ----
+
+def custom_request(source, url="http://localhost:8081", **extra):
+    return {"target_id": "custom", "source_path": str(source), "target_url": url, "language": "auto",
+            "run_sast": True, "run_dast": True, **extra}
+
+
+def test_custom_application_is_offered_next_to_the_built_in_targets():
+    with TestClient(create_app(WEB / "example.issues.json", example=True)) as client:
+        targets = client.get("/api/targets").json()["targets"]
+    ids = [target["id"] for target in targets]
+    assert "custom" in ids and "benchmark_shop" in ids
+    custom = next(target for target in targets if target["id"] == "custom")
+    assert custom["custom"] is True and custom["sast_supported"] is True
+
+
+def test_custom_only_mode_hides_the_built_in_targets(monkeypatch):
+    monkeypatch.setenv("CYBERFORGE_CUSTOM_ONLY", "1")
+    monkeypatch.setenv("CYBERFORGE_WORKSPACE", "/workspace")
+    with TestClient(create_app(WEB / "example.issues.json", example=True)) as client:
+        targets = client.get("/api/targets").json()["targets"]
+        refused = client.post("/api/scans", json={"target_id": "benchmark_shop", "run_dast": True})
+    assert [target["id"] for target in targets] == ["custom"]
+    assert targets[0]["default_source"].endswith("workspace")
+    assert refused.status_code == 400
+
+
+def test_custom_scan_refuses_a_host_that_is_not_this_machine(tmp_path):
+    with TestClient(create_app(WEB / "example.issues.json", example=True)) as client:
+        response = client.post("/api/scans", json=custom_request(tmp_path, url="http://example.com:8081"))
+    assert response.status_code == 400
+    assert "only this machine" in response.json()["detail"]
+
+
+def test_host_allow_list_follows_the_environment(monkeypatch, tmp_path):
+    from web.scan_manager import ScanManager
+
+    with pytest.raises(ValueError):
+        ScanManager.validate_target_url("http://host.docker.internal:8081")
+    monkeypatch.setenv("CYBERFORGE_ALLOWED_HOSTS", "localhost,127.0.0.1,host.docker.internal")
+    assert ScanManager.validate_target_url("http://host.docker.internal:8081/") == "http://host.docker.internal:8081"
+    with pytest.raises(ValueError):
+        ScanManager.validate_target_url("http://example.com:8081")
+
+
+def test_custom_scan_refuses_source_outside_the_workspace(monkeypatch, tmp_path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    outside = tmp_path / "elsewhere"
+    outside.mkdir()
+    monkeypatch.setenv("CYBERFORGE_WORKSPACE", str(workspace))
+    with TestClient(create_app(WEB / "example.issues.json", example=True)) as client:
+        absolute = client.post("/api/scans", json=custom_request(outside))
+        dotdot = client.post("/api/scans", json=custom_request("../elsewhere"))
+    assert absolute.status_code == 400 and "must be inside" in absolute.json()["detail"]
+    assert dotdot.status_code == 400 and "must be inside" in dotdot.json()["detail"]
+
+
+def test_custom_scan_refuses_a_symlink_that_leads_out_of_the_workspace(monkeypatch, tmp_path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    outside = tmp_path / "elsewhere"
+    outside.mkdir()
+    try:
+        (workspace / "link").symlink_to(outside, target_is_directory=True)
+    except OSError:
+        pytest.skip("this machine can't create symlinks")
+    monkeypatch.setenv("CYBERFORGE_WORKSPACE", str(workspace))
+    with TestClient(create_app(WEB / "example.issues.json", example=True)) as client:
+        response = client.post("/api/scans", json=custom_request("link"))
+    assert response.status_code == 400 and "must be inside" in response.json()["detail"]
+
+
+def test_custom_scan_starts_and_remembers_what_it_scans(monkeypatch, tmp_path):
+    from web.scan_manager import ScanManager
+
+    seen = {}
+
+    async def fake_run(self, scan_id, request, target, folder):
+        seen.update(target=target, request=request)
+        self.jobs[scan_id]["status"] = "complete"
+
+    monkeypatch.setattr(ScanManager, "_run", fake_run)
+    source = tmp_path / "shop"
+    source.mkdir()
+    with TestClient(create_app(WEB / "example.issues.json", example=True)) as client:
+        response = client.post("/api/scans", json=custom_request(source, language="php"))
+    assert response.status_code == 200
+    job = response.json()
+    assert job["target_id"] == "custom" and job["target_name"] == "Custom application (shop)"
+    assert job["target_url"] == "http://localhost:8081"
+    assert job["target_spec"] == {"name": "Custom application (shop)", "source": str(source.resolve()), "language": "php",
+                                  "url": "http://localhost:8081"}
+    # no config file: DAST then limits itself to exactly this target
+    assert seen["target"]["config"] is None and seen["target"]["language"] == "php" and seen["target"]["source"] == source.resolve()
+
+
+def test_custom_scan_needs_a_real_source_folder_and_a_known_language(tmp_path):
+    with TestClient(create_app(WEB / "example.issues.json", example=True)) as client:
+        missing = client.post("/api/scans", json=custom_request(tmp_path / "nope"))
+        odd_language = client.post("/api/scans", json=custom_request(tmp_path, language="cobol"))
+        nothing = client.post("/api/scans", json={"target_id": "custom", "run_sast": False, "run_dast": False})
+    assert missing.status_code == 400 and "not found" in missing.json()["detail"]
+    assert odd_language.status_code == 400 and "language" in odd_language.json()["detail"]
+    assert nothing.status_code == 400
+
+
+def test_built_in_targets_keep_their_port_lock():
+    with TestClient(create_app(WEB / "example.issues.json", example=True)) as client:
+        response = client.post("/api/scans", json={"target_id": "benchmark_shop", "target_url": "http://127.0.0.1:9999",
+                                                   "run_sast": False, "run_dast": True})
+    assert response.status_code == 400 and "configured local port 8088" in response.json()["detail"]
+
+
+def test_a_custom_run_is_restored_and_its_target_found_again(tmp_path):
+    from web import scan_manager
+    from web.scan_manager import ScanManager
+
+    folder = scan_manager.OUT / "cli-run"
+    folder.mkdir(parents=True)
+    (folder / "issues.json").write_text("{}")
+    spec = {"name": "Custom application (shop)", "source": str(tmp_path), "language": "python", "url": "http://localhost:8081"}
+    manifest = {"id": "cli-run", "target_id": "custom", "target_name": spec["name"], "target_url": spec["url"], "status": "complete",
+                "stage": "Complete", "created_at": "2026-11-01T00:00:00+00:00", "completed_at": "2026-11-01T00:02:00+00:00",
+                "elapsed_seconds": 120.0, "options": {"run_sast": True, "run_dast": True}, "error": None,
+                "report_path": str(folder / "issues.json"), "gate": None, "target_spec": spec}
+    (folder / "scan.json").write_text(json.dumps(manifest))
+    manager = ScanManager()
+    assert manager.get_job("cli-run")["target_spec"] == spec
+    target = manager.target_for("custom")
+    assert target["name"] == spec["name"] and target["config"] is None and str(target["source"]) == str(tmp_path)
+    assert manager.target_for("no-such-target") is None

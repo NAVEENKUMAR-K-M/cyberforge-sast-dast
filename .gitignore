@@ -18,6 +18,10 @@ venv/
 # Correlator output (python -m correlator.cli --out out/issues.json)
 out/
 
+# The folder Docker mounts as /workspace: a judge drops the application's source here
+workspace/*
+!workspace/.gitkeep
+
 # Local vulnerability benchmark checkouts
 benchmarks/dvwa/
 benchmarks/juice-shop/

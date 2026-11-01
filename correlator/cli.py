@@ -9,6 +9,7 @@ from collections import Counter
 
 from correlator.correlate import InputError, correlate, load_report
 from correlator.loop import dast_executor, run_loop
+from cyberforge.runtime import python_for
 from correlator.env import load_env
 from correlator.planner import PROVIDERS, ChatPlanner
 from correlator.report import render
@@ -28,7 +29,8 @@ def main(argv=None) -> int:
                         help="re-test credible Code only issues live with the DAST engine and correlate the results again")
     parser.add_argument("--dast-engine", default=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "dast-engine"),
                         help="the DAST engine folder (for --investigate)")
-    parser.add_argument("--dast-python", default=None, help="Python for the DAST engine (default: <dast-engine>/.venv)")
+    parser.add_argument("--dast-python", default=None,
+                        help="Python for the DAST engine (default: dast-engine/.venv if present, else this interpreter)")
     parser.add_argument("--dast-config", default=None, help="DAST config file (for --investigate)")
     parser.add_argument("--planner", choices=["none", *PROVIDERS], default="none",
                         help="who proposes the second test when the first doesn't settle a case. A provider sends the handler's "
@@ -48,7 +50,7 @@ def main(argv=None) -> int:
 
     sources = {"sast": args.sast, "dast": args.dast}
     if args.investigate:
-        python = args.dast_python or os.path.join(args.dast_engine, ".venv", "bin", "python")
+        python = args.dast_python or str(python_for("dast"))
         if not os.path.isfile(python):
             print(f"error: --investigate needs the DAST engine's Python, but {python} doesn't exist (use --dast-python)", file=sys.stderr)
             return 2

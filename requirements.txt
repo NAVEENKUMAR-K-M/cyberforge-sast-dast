@@ -1,0 +1,26 @@
+# Everything needed to RUN CyberForge (SAST, DAST, the correlator and the web workspace) in one Python environment.
+# The Docker image and the quick start in README.md use this file. Each engine's own requirements.txt still adds the
+# test tools and is what its README uses for development.
+#
+#   python -m venv .venv && .venv/bin/pip install -r requirements.txt        (Windows: .venv\Scripts\pip)
+
+# SAST engine
+tree-sitter==0.26.0
+tree-sitter-php==0.25.1
+semgrep==1.183.0
+
+# DAST engine
+httpx==0.27.2
+h2==4.1.0
+beautifulsoup4==4.12.3
+lxml==5.3.0
+click>=8.1.7,<9          # semgrep needs 8.4.x; the DAST engine only uses click for its command line
+tenacity==9.0.0
+
+# Shared by the engines, the correlator and the web workspace
+PyYAML>=6
+jsonschema>=4
+
+# Web workspace
+fastapi>=0.115,<1
+uvicorn>=0.34,<1
