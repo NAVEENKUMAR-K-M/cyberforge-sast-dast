@@ -39,11 +39,14 @@ def main(argv=None) -> int:
     parser.add_argument("--source-root", default=None, help="the folder SAST scanned, so the planner can read handler source")
     parser.add_argument("--max-cases", type=int, default=10, help="most issues to re-test")
     parser.add_argument("--budget", type=float, default=120.0, help="seconds to spend re-testing")
+    parser.add_argument("--sca", default=None,
+                        help="sca.json from `python -m sca.cli scan`, shown as a separate dependencies section")
     args = parser.parse_args(argv)
 
     try:
         sast = load_report(args.sast, "sast")
         dast = load_report(args.dast, "dast")
+        dependencies = _dependencies(args.sca) if args.sca else None
     except InputError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -77,6 +80,8 @@ def main(argv=None) -> int:
         result["inputs"]["dast"]["path"] = evidence_file   # the report with the new findings, so the result can be rebuilt from it
     else:
         result = correlate(sast, dast, args.base_path, sources=sources)
+    if dependencies is not None:
+        result["dependencies"] = dependencies      # kept apart: SCA rows never enter linking, labels or the issue ranking
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     with open(args.out, "w", encoding="utf-8") as handle:
         json.dump(result, handle, indent=2)
@@ -94,6 +99,10 @@ def main(argv=None) -> int:
         outcomes = Counter(r["outcome"] for r in result["investigations"])
         print(f"Re-tested {stats['investigated']} issues: " + (", ".join(f"{n} {k}" for k, n in sorted(outcomes.items())) or "none")
               + f"; {stats['upgraded']} became Confirmed")
+    if dependencies is not None:
+        counts = dependencies["stats"]
+        print(f"Dependencies: {counts['Reachable']} Reachable, {counts['Unknown']} Unknown, {counts['Imported-only']} "
+              f"Imported-only, {counts['Present-only']} Present-only; {counts['supply_chain']} supply-chain findings")
     for message in result["diagnostics"]:
         print(f"warning: {message}")
     top = [i for i in result["issues"] if i["reportable"]][:5]
@@ -107,6 +116,21 @@ def main(argv=None) -> int:
         print(f"  #{issue['rank']} {issue['label']:<12} CVSS {issue['risk_score']:<4} {issue['cwe']:<8} {where}")
     print(f"Wrote {args.out} and {page}")
     return 0
+
+
+def _dependencies(path: str) -> dict:
+    """The parts of an SCA report the issue page shows."""
+    try:
+        with open(path, encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (OSError, ValueError) as exc:
+        raise InputError(f"can't read {path}: {exc}") from None
+    if not isinstance(data, dict) or data.get("tool") != "cyberforge-sca":
+        raise InputError(f"{path} isn't an SCA report from `python -m sca.cli scan`")
+    analysis = data.get("analysis") or {}
+    return {"source": path, "advisory_lookup": data.get("advisory_lookup") or {}, "rows": data.get("dependencies") or [],
+            "supply_chain": data.get("supply_chain") or [], "stats": data.get("stats") or {},
+            "analysis": {k: analysis.get(k) for k in ("roots", "packages_analysed", "complete", "limit", "assumptions")}}
 
 
 if __name__ == "__main__":

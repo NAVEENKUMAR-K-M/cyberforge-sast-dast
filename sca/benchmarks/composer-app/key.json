@@ -1,0 +1,33 @@
+{
+  "app": "sca/benchmarks/composer-app",
+  "note": "Written before the analysis was run on this app. `truth` is what a person reading the code can establish; `expected` is what a sound static analysis should report given its stated limits. A status that reassures (Imported-only, Present-only) where the truth is Reachable or Unknown is an unsafe reassurance; a Reachable where the truth isn't is a false Reachable.",
+  "rows": [
+    {
+      "package": "symfony/http-foundation",
+      "version": "v7.4.18",
+      "advisory": "GHSA-r925-mgvr-h9cc",
+      "truth": "Reachable",
+      "expected": "Reachable",
+      "affected_function": "Symfony\\Component\\HttpFoundation\\HeaderUtils::split",
+      "evidence": "The advisory names HeaderUtils::split() and says HeaderBag calls it for Cache-Control whenever a Request is built; the fix commits (343a1772, 9ffa802e) change only that function outside tests. Path: public/index.php -> HttpFoundationFactory::createRequest (symfony/psr-http-message-bridge) -> new Request -> Request::__construct -> Request::initialize -> new HeaderBag -> HeaderBag::__construct -> HeaderBag::set -> HeaderBag::parseCacheControl -> HeaderUtils::split. The app reaches http-foundation only through the bridge."
+    },
+    {
+      "package": "symfony/yaml",
+      "version": "v7.4.17",
+      "advisory": "GHSA-2v3c-qxhr-7vpv",
+      "truth": "Reachable",
+      "expected": "Unknown",
+      "affected_function": "Symfony\\Component\\Yaml\\Parser::lexInlineStructure",
+      "evidence": "public/import.php calls $parser->$action() with the method name taken from the request. With the default it reaches Parser::parse() and lexInlineStructure(), but which method runs is a runtime value, so a static analysis must not claim either Reachable or a reassuring status. symfony/yaml also declares the executable bin/yaml-lint, which is an uncertainty, not evidence it runs."
+    },
+    {
+      "package": "league/flysystem",
+      "version": "3.35.2",
+      "advisory": "GHSA-cxf4-7mrp-vvpr",
+      "truth": "Present-only",
+      "expected": "Present-only",
+      "evidence": "Required by composer.json and never used by the app. league/flysystem-local requires it back (and it requires flysystem-local), but nothing the app uses mentions either package."
+    }
+  ],
+  "supply_chain": []
+}

@@ -1,5 +1,6 @@
 """The OpenAI planner, against a fake HTTP function: what it sends, what it accepts, how it fails."""
 import json
+import os
 import urllib.error
 
 import pytest
@@ -9,6 +10,13 @@ from correlator.loop import check_plan, default_plan, find_cases, run_loop
 from correlator.planner import ChatPlanner, build_bundle
 from correlator.tests.test_correlate import route, sast
 from correlator.tests.test_loop import FakeExecutor, docs
+
+
+def clear_keys(monkeypatch, prefix="GROQ_API_KEY"):
+    """Removes every key variable that is set, whatever its number: the planner reads GROQ_API_KEY, _2, _3 and on, and a
+    developer's own .env (loaded by other tests) can define any of them."""
+    for name in [n for n in os.environ if n.startswith(prefix)]:
+        monkeypatch.delenv(name)
 
 KEY = "sk-test-not-a-real-key-1234567890"
 SOURCE = '<?php\n$password = "hunter2-real-secret";\n$back = $_GET["back"];\nif (strpos($back, "forge-shop") !== false) { header("Location: " . $back); }\n'
@@ -92,7 +100,7 @@ def test_a_failed_call_is_a_give_up_that_never_leaks_the_key(case, failure):
 
 def test_no_key_means_no_call(case, monkeypatch):
     case, _ = case
-    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    clear_keys(monkeypatch)
     fake = Recorder(reply())
     assert ChatPlanner("groq", "gpt-test", None, post=fake)(case, [])["reason"] .startswith("no GROQ_API_KEY is set") and fake.bodies == []
 
@@ -223,8 +231,7 @@ def test_when_every_key_rests_the_pool_waits_for_the_soonest_and_gives_up_on_a_l
 
 def test_keys_come_from_the_environment_in_order_and_empty_ones_are_ignored(monkeypatch):
     from correlator.planner import keys_from_env
-    for name in ("GROQ_API_KEY", "GROQ_API_KEY_2", "GROQ_API_KEY_10", "GROQ_API_KEY_3", "GROQ_API_KEYS_X"):
-        monkeypatch.delenv(name, raising=False)
+    clear_keys(monkeypatch)
     monkeypatch.setenv("GROQ_API_KEY_10", "k10"), monkeypatch.setenv("GROQ_API_KEY", "k1"), monkeypatch.setenv("GROQ_API_KEY_3", "k3")
     monkeypatch.setenv("GROQ_API_KEY_2", ""), monkeypatch.setenv("GROQ_API_KEYS_X", "other")
     assert keys_from_env("GROQ_API_KEY") == ["k1", "k3", "k10"]

@@ -1,0 +1,8 @@
+{
+ "body": null,
+ "epoch": 1793504157.6745422,
+ "fetched_at": "2026-11-01T03:35:57Z",
+ "status": 200,
+ "text": "{\"status\":\"OK\",\"status-code\":200,\"version\":\"1.0\",\"access\":\"public\",\"total\":3,\"offset\":0,\"limit\":100,\"data\":[{\"cve\":\"CVE-2026-109413\",\"epss\":\"0.003950000\",\"percentile\":\"0.337800000\",\"date\":\"2026-10-31\"},{\"cve\":\"CVE-2026-108082\",\"epss\":\"0.004800000\",\"percentile\":\"0.414590000\",\"date\":\"2026-10-31\"},{\"cve\":\"CVE-2026-102601\",\"epss\":\"0.003370000\",\"percentile\":\"0.271410000\",\"date\":\"2026-10-31\"}]}\n",
+ "url": "https://api.first.org/data/v1/epss?cve=CVE-2026-102601,CVE-2026-108082,CVE-2026-109413"
+}

@@ -91,6 +91,7 @@ In this mode the same **Custom application** option scans any folder on your mac
 | [dast-engine/](dast-engine/) | Dynamic scanner: tests the running app | [README](dast-engine/README.md) |
 | [common/](common/) | The one finding format both scanners write, for the correlator to read | [FORMAT.md](common/FORMAT.md) |
 | [correlator/](correlator/) | Joins both reports into one issue per bug: Confirmed, Code only or Runtime only | [README](correlator/README.md) |
+| [sca/](sca/) | Reachability-aware SCA (bonus): can the app reach a vulnerable library function? Composer apps | [README](sca/README.md) |
 | [web/](web/) | Local analyst workspace: findings, source/runtime evidence, and scan coverage | [README](web/README.md) |
 
 ## Open-source software used
@@ -180,6 +181,7 @@ Run these from the repo root:
 (cd dast-engine && .venv/bin/python -m pytest)           # DAST
 sast-engine/.venv/bin/python -m pytest common/tests      # the shared format
 sast-engine/.venv/bin/python -m pytest correlator/tests  # the correlator
+sast-engine/.venv/bin/python -m pytest sca/tests         # reachability-aware SCA
 web/.venv/bin/python -m pytest cyberforge/tests web/tests  # the one-command scan, and the analyst workspace's API (needs pytest, httpx)
 (cd web && npm test -- --run)                             # the analyst workspace's UI
 ```

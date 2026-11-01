@@ -1,0 +1,8 @@
+{
+ "body": null,
+ "epoch": 1793505651.687975,
+ "fetched_at": "2026-11-01T04:00:51Z",
+ "status": 200,
+ "text": "From ef4a9a557d769b5d472c403125716706a0d9cc77 Mon Sep 17 00:00:00 2001\nFrom: Frank de Jonge <info@frankdejonge.nl>\nDate: Sat, 22 Aug 2026 14:53:53 +0200\nSubject: [PATCH] Report broken utf-8 as a corrupted path.\n\n---\n src/WhitespacePathNormalizer.php     | 3 ++-\n src/WhitespacePathNormalizerTest.php | 2 +-\n 2 files changed, 3 insertions(+), 2 deletions(-)\n\ndiff --git a/src/WhitespacePathNormalizer.php b/src/WhitespacePathNormalizer.php\nindex 16d78fa73..7daaf659b 100644\n--- a/src/WhitespacePathNormalizer.php\n+++ b/src/WhitespacePathNormalizer.php\n@@ -22,8 +22,9 @@ public function __construct(bool $allowRelativePathTraversal = true)\n     public function normalizePath(string $path): string\n     {\n         $unixPath = str_replace('\\\\', '/', $path);\n+        $match = preg_match('#\\p{C}+#u', $unixPath);\n \n-        if (preg_match('#\\p{C}+#u', $unixPath)) {\n+        if ($match !== 0) {\n             throw CorruptedPathDetected::forPath($path);\n         }\n \ndiff --git a/src/WhitespacePathNormalizerTest.php b/src/WhitespacePathNormalizerTest.php\nindex eadbbd37f..3daa547c7 100644\n--- a/src/WhitespacePathNormalizerTest.php\n+++ b/src/WhitespacePathNormalizerTest.php\n@@ -134,7 +134,7 @@ public function rejecting_funky_whitespace(string $path): void\n \n     public static function dpFunkyWhitespacePaths(): iterable\n     {\n-        return [[\"some\\0/path.txt\"], [\"s\\x09i.php\"]];\n+        return [[\"some\\0/path.txt\"], [\"s\\x09i.php\"], [\"foo\\x80\\x1bbar\"]];\n     }\n \n     /**\n",
+ "url": "https://github.com/thephpleague/flysystem/commit/ef4a9a557d769b5d472c403125716706a0d9cc77.patch"
+}

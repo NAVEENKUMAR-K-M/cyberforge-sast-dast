@@ -62,6 +62,20 @@
       "type": "array",
       "description": "Live re-tests of unresolved cases: each round's plan, the requests actually sent, the outcome, the evidence level and what it did to the issue.",
       "items": {"type": "object", "required": ["case_id", "kind", "issue_id", "source", "rounds", "outcome", "stop_reason"]}
+    },
+    "dependencies": {
+      "type": "object",
+      "description": "Reachability-aware SCA from sca/ (--sca), kept apart from the issues: affected dependency versions with a status (Reachable, Imported-only, Present-only, Unknown), and supply-chain findings. These rows never enter linking, labels or the issue ranking.",
+      "required": ["source", "advisory_lookup", "rows", "supply_chain", "stats", "analysis"],
+      "properties": {
+        "source": {"type": "string"},
+        "advisory_lookup": {"type": "object"},
+        "rows": {"type": "array", "items": {"type": "object", "required": ["package", "version", "advisory", "status", "reason"],
+                                            "properties": {"status": {"enum": ["Reachable", "Imported-only", "Present-only", "Unknown"]}}}},
+        "supply_chain": {"type": "array", "items": {"type": "object", "required": ["kind", "title", "evidence"]}},
+        "stats": {"type": "object"},
+        "analysis": {"type": "object"}
+      }
     }
   },
   "$defs": {
