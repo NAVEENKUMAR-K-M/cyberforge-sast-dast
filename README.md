@@ -1,220 +1,222 @@
 # CyberForge: SAST + DAST correlation
 
-One bug, one ticket. CyberForge reads an application's source code (SAST), attacks the running application (DAST), links the two views of each
-bug, and gives **one ranked list**: *this URL and parameter is exploitable (here is the payload that proved it), and this is the line of code to change.*
-Each issue is labelled **Confirmed** (found by both), **Code only** or **Runtime only**, and ranked by a CVSS v3.0 score. It supports PHP (plain and
-Laravel) and Python (Flask, FastAPI, Django) applications and covers SQL injection, XSS, command injection, path traversal, open redirect and hard-coded secrets.
-For the architecture, results and pitch material see [hackathon.md](hackathon.md).
+One bug, one ticket. CyberForge reads an application's source code (SAST), attacks the running application (DAST), links the two views of each bug and gives **one ranked list**: *this URL and parameter is exploitable, here is the payload that proved it, and this is the line of code to change.*
 
-## Quick start with Docker
+Each issue is **Confirmed** (found in both), **Code only** or **Runtime only**, and is ranked by CVSS v3.0. It reads PHP (plain, Laravel) and Python (Flask, FastAPI, Django) and covers SQL injection, XSS, command injection, path traversal, open redirect and hard-coded secrets, plus a reachability check for vulnerable libraries in Composer apps.
 
-You need Docker with Compose v2.24 or newer. Nothing else: the web interface is built inside the image.
+## Run it
 
-```sh
-cp .env.example .env                  # optional: add GROQ_API_KEY to enable the AI-assisted step (see below)
-docker compose up -d --build          # the first build takes a few minutes (it installs the scanners and builds the UI)
-```
+### With Docker
 
-Open **http://127.0.0.1:8000** (if that port is taken, set `CYBERFORGE_PORT` in `.env`). To check it is healthy: `docker compose ps`. To stop it: `docker compose down`.
-
-### Scan an application (the organisers' app, or your own)
-
-1. **Start the application** the way it came (usually its own `docker compose up -d`) and note the port it publishes, for example `8081`.
-2. **Give the tool its source code.** Put the source folder's path in `.env` as `TARGET_SOURCE=/path/to/the/application/source`
-   (or copy the source into the `workspace/` folder), then run `docker compose up -d` again. It is mounted read-only at `/workspace`.
-3. **Scan it**, either in the browser or from the command line:
-   - **Browser:** choose **Custom application**, keep the source folder `/workspace`, set the runtime URL to
-     `http://host.docker.internal:8081` (the port from step 1), press **Start scan**. Progress and the log appear on the page and the ranked findings open when it finishes.
-   - **Command line** (same engine, same results):
-     ```sh
-     docker compose run --rm scan scan --source . --target http://host.docker.internal:8081
-     ```
-     `--source .` is the mounted source folder (a subfolder name works too). It is written without a leading `/` on purpose: Git Bash on Windows rewrites
-     arguments that start with `/` into Windows paths before Docker sees them. If you do need one, use PowerShell, or prefix the command with `MSYS_NO_PATHCONV=1`.
-
-`host.docker.internal` is how a container reaches the machine Docker runs on, so the application on your own machine is reachable at that name.
-Reports are written to `out/scans/<id>/` on your machine (`issues.html` is a self-contained report; `issues.json` is the data) and every run
-also appears in the browser's scan history.
-
-| If the application is... | Do this |
-|---|---|
-| Publishing a port on your machine (the usual case) | `http://host.docker.internal:<port>`, as above |
-| Running in Docker but publishing **no** port | Share its network instead: `docker run --rm --env-file .env --network container:<app-container> -v <source>:/workspace:ro -v "$PWD/out:/app/out" cyberforge scan --source . --target http://localhost:<container port>` (command line only) |
-| Running directly on your machine, and you don't want Docker for the tool | See "Quick start without Docker" |
-
-`--source` and `--target` are each optional: only the source gives Code-only issues, only the URL gives Runtime-only issues, both give the full correlation.
-`docker compose run --rm scan scan --help` lists the rest (login, headers, cookies, deadline, `--no-ai`, `--fail-on confirmed-high` for a CI gate, `--sarif`).
-
-### Try it without an application of your own
+Needs Docker with Compose v2.24+. The interface is built inside the image.
 
 ```sh
-TARGET_SOURCE=./sast-engine/benchmarks/pyshop docker compose --profile demo up -d --build   # starts two deliberately vulnerable demo apps: 8088 (PHP) and 8089 (Flask)
-docker compose run --rm scan scan --source . --target http://host.docker.internal:8089
+cp .env.example .env                  # optional: a GROQ_API_KEY turns on the AI-assisted step (see below)
+docker compose up -d --build          # first build takes a few minutes
 ```
-Expect about 20 Confirmed issues on this Flask shop in two to three minutes. The demo apps are deliberately vulnerable, so Compose publishes them on `127.0.0.1` only.
 
-### The AI-assisted step
+Open **http://127.0.0.1:8000**. Stop it with `docker compose down`.
 
-When a finding in the code can't be proven by the first automatic re-test, a language model (Groq, `openai/gpt-oss-120b`) may propose one more request. It can only
-adjust the request: it can't change the route, parameter or weakness, and the **correlator alone** decides whether the result counts as proof. Findings proven this way carry an
-**AI-assisted** tag. Without a key in `.env`, this step is skipped and **nothing leaves your machine**. With one, the handler's source (passwords removed) is sent to the provider.
+### Without Docker
 
-### Safety
-
-Scans only touch this machine: `localhost`, `127.0.0.1` and, inside Docker, `host.docker.internal`. Any other host is refused before a request is sent. Pages whose address
-contains words such as `logout`, `reset` or `delete` are never requested, and `DELETE` endpoints are not tested. The application's source is mounted read-only.
-
-## Quick start without Docker
-
-Needs Python 3.10 or newer. Node is needed only if you want the browser interface.
+Needs Python 3.10+. Node 20.19+ is only needed for the browser interface.
 
 ```sh
 python -m venv .venv
-.venv/bin/pip install -r requirements.txt           # Windows: .venv\Scripts\pip install -r requirements.txt
-.venv/bin/python -m cyberforge scan --source /path/to/app/source --target http://localhost:8081
+.venv/bin/pip install -r requirements.txt            # Windows: .venv\Scripts\pip
+.venv/bin/python -m cyberforge scan --source /path/to/app --target http://localhost:8081
+(cd web && npm ci && npm run build) && .venv/bin/python -m web.server     # optional: the interface at http://127.0.0.1:8000
 ```
 
-For the browser interface, build it once (Node 20.19+ or 22.12+) and start the workspace:
+### Scan an application
 
-```sh
-(cd web && npm ci && npm run build)
-.venv/bin/python -m web.server                      # http://127.0.0.1:8000
-```
-In this mode the same **Custom application** option scans any folder on your machine, and the bundled demo applications below are also listed.
+1. **Start the application** the way it came (usually its own `docker compose up -d`) and note its port, for example `8081`.
+2. **Give the tool its source.** With Docker, set `TARGET_SOURCE=/path/to/the/source` in `.env` (or copy it into `workspace/`) and run `docker compose up -d` again. It is mounted read-only at `/workspace`.
+3. **Scan it.**
+   - *Browser:* **New scan** → **Custom application**, source folder `/workspace`, URL `http://host.docker.internal:8081` → **Start scan**.
+   - *Command line:* `docker compose run --rm scan scan --source . --target http://host.docker.internal:8081` (without Docker, use the `cyberforge scan` command above).
 
-## Structure
+`--source` and `--target` are each optional: source only gives Code only issues, URL only gives Runtime only issues, both give the full correlation. If nothing answers at the URL, the scan stops at once and says so. `scan --help` lists login options, `--deadline`, `--no-ai`, `--no-sca`, `--sarif` and `--fail-on confirmed-high` (a CI gate).
 
-| Folder | What it is | Start here |
+Reports are written to `out/scans/<id>/`: `issues.html` is a self-contained report and `issues.json` is the data.
+
+**Try it first:** `TARGET_SOURCE=./sast-engine/benchmarks/pyshop docker compose --profile demo up -d --build` starts two deliberately vulnerable demo apps on 8088 (PHP) and 8089 (Flask), then `docker compose run --rm scan scan --source . --target http://host.docker.internal:8089`.
+
+**Safety.** Scans only touch `localhost`, `127.0.0.1` and, in Docker, `host.docker.internal`; any other host is refused before a request is sent. Pages named like `logout`, `reset` or `delete` are never requested and `DELETE` endpoints are not tested.
+
+**What leaves the machine.** Nothing by default. The dependency analysis (Composer apps) sends package names and versions, never source code, to public advisory services (OSV, GitHub advisories, FIRST EPSS, CISA KEV); `--no-sca` turns it off. With a `GROQ_API_KEY`, a model may propose one extra test for a finding the first automatic re-test could not prove; it then receives the handler's source with passwords removed, and `--no-ai` turns it off. A model can only adjust a request; the correlator alone decides whether the result counts as proof.
+
+## What it covers
+
+| ID | Requirement | Where |
 |---|---|---|
-| [cyberforge/](cyberforge/) | The one-command scan (`python -m cyberforge scan`), which drives the workspace's scan runner | [cli.py](cyberforge/cli.py) |
-| [sast-engine/](sast-engine/) | Static scanner: reads PHP or Python (Flask, FastAPI, spec-first) source, finds bugs and maps URLs to code | [README](sast-engine/README.md) |
-| [dast-engine/](dast-engine/) | Dynamic scanner: tests the running app | [README](dast-engine/README.md) |
-| [common/](common/) | The one finding format both scanners write, for the correlator to read | [FORMAT.md](common/FORMAT.md) |
-| [correlator/](correlator/) | Joins both reports into one issue per bug: Confirmed, Code only or Runtime only | [README](correlator/README.md) |
-| [sca/](sca/) | Reachability-aware SCA (bonus): can the app reach a vulnerable library function? Composer apps | [README](sca/README.md) |
-| [web/](web/) | Local analyst workspace: findings, source/runtime evidence, and scan coverage | [README](web/README.md) |
+| FR-1 | SAST scan: file, line, type, severity, snippet | [sast-engine/](sast-engine/) |
+| FR-2 | DAST scan: URL, method, parameter, payload, evidence | [dast-engine/](dast-engine/) |
+| FR-3 | One common finding format with a CWE | [common/](common/FORMAT.md) |
+| FR-4 | Route map: URL to function and lines | SAST's `routes.json`; the **Routes** tab |
+| FR-5, FR-6 | Link runtime findings to code; merge duplicates (stable IDs, no copies on a rescan) | [correlator/](correlator/README.md) |
+| FR-7 | Confirmed / Code only / Runtime only | Overview and Issues |
+| FR-8 | Issue detail: URL, parameter, payload, file, line, snippet, CWE, severity | `issues.html`; **Issues** tab |
+| FR-9 | Confirmed first, then CVSS v3.0 risk | Overview: *Fix first* |
+| FR-10 | Command line, API and page, with this README | `python -m cyberforge scan`; `/api/report`; [web/](web/README.md) |
+| B-1 | Auto-verify Code only issues at runtime | Every full scan re-tests them; AI step optional |
+| B-2 | Cut SAST noise | Protected or unreachable code is `suppressed` with a reason |
+| B-3 | Explain every link | Issue detail: *Why linked* |
+| B-4 | Fix suggestion | Issue detail: *Fix guidance* |
+| B-5 | Compare two scans | **New scan** → *Compare scans*; `/api/scans/compare` |
+| B-6 | SARIF export and CI gate | **Export** menu; `--sarif`, `--fail-on confirmed-high` |
+| B-7 | A second language or framework | PHP and Python: Laravel, Flask, FastAPI, Django |
+| Note | Reachability-aware SCA | [sca/](sca/README.md); the **Dependencies** tab |
+
+All six weakness types are covered (the PRD asks for four): CWE-89, 79, 78, 22, 601 and 798.
+
+## Results
+
+Every number below comes from one command, run on the deliberately vulnerable apps in this repository: `python -m cyberforge scan --source <app> --target <url> --no-ai`, in a fresh Python 3.11 environment installed from `requirements.txt`, with no AI and no per-app settings. The exception is DVWA, which needs a login and its difficulty level set to *low*, so it was run with its own config (`dast-engine/dvwa.yaml`) and the same correlation. Links are scored against hand-written answer keys in `sast-engine/eval/keys/` by `correlator/eval/score_links.py`. Every key bug was exploited over HTTP by a verify script, and every decoy was attacked to confirm it is safe.
+
+| App | Correct links | Wrong links | Decoys reported | Confirmed | Time |
+|---|---|---|---|---|---|
+| PHP shop | 19 / 22 (86%) | 0 | 0 / 13 | 19 | 72 s |
+| Flask shop | 21 / 23 (91%) | 0 | 0 / 16 | 21 | 93 s |
+| FastAPI shop | 6 / 6 (100%) | 0 | 0 / 4 | 6 | 25 s |
+| Django shop | 10 / 10 (100%) | 0 | 0 / 11 | 10 | 40 s |
+| Laravel shop | 8 / 8 (100%) | 0 | 0 / 9 | 8 | 36 s |
+| DVWA | not scored¹ | 0 seen | – | 14 | 8 min 15 s² |
+
+¹ DVWA's key lists code locations only, so links can't be scored. Its runtime scan found **11 of 11** bugs in DVWA's runtime key with 0 false alarms in 62 findings. ² The runtime scan used its whole time budget (465 s) and stopped with 193 of 276 inputs tested, so a Code only issue there means *not proven*, not *safe*.
+
+**Proof.** Each row is a real Confirmed issue from those runs. *Validated* means the recorded request and response show the weakness itself; *partial* means the input reached the target but exploitation is not shown (SQL injection is confirmed by a database error or a quote differential, not by extracting data).
+
+<details open><summary><strong>PHP shop</strong></summary>
+
+| Issue | Payload | Code | Proof |
+|---|---|---|---|
+| Command injection, `GET /api/convert.php?format` | `;expr 5586 + 720` | `app/public/api/convert.php:3` | **validated**: the target computed 6306, which is not in the payload |
+| XSS, `GET /gallery.php?img` | `dz7p0oi040 onmouseover=dz7p0oi040` (a unique token) | `app/public/gallery.php:5` | **validated**: a script-running payload is reflected unchanged |
+| SQL injection, `GET /shop.php?action=track&code` | `'` | `app/public/shop.php:13` | partial: a database error |
+</details>
+
+<details><summary><strong>Flask shop</strong></summary>
+
+| Issue | Payload | Code | Proof |
+|---|---|---|---|
+| Path traversal, `GET /files/download?file` | `/etc/passwd` | `app/files.py:15` | **validated**: system file content in the response |
+| Command injection, `POST /admin/backup` (`label`) | `$(sleep 4)` | `app/admin.py:30` | **validated**: two requests delayed 4.1 s against a 0.01 s baseline |
+| SQL injection, `POST /auth/login` (`username`) | `'` against `''` | `app/auth.py:25` | partial: a database error |
+</details>
+
+<details><summary><strong>FastAPI shop</strong></summary>
+
+| Issue | Payload | Code | Proof |
+|---|---|---|---|
+| Open redirect, `GET /api/v1/go?url` | `https://dast-canary.invalid/` | `main.py:116` | **validated**: the server redirected to the host the test chose |
+| SQL injection, `GET /api/v1/items/search?q` | `'` against `''` | `main.py:67` | partial: a database error |
+| Stored XSS, `POST /api/v1/items/{id}/notes` (`body`) | a unique marker | `main.py:96` | partial: reflected, but nothing that would run in a browser |
+</details>
+
+<details><summary><strong>Django shop</strong></summary>
+
+| Issue | Payload | Code | Proof |
+|---|---|---|---|
+| Path traversal, `GET /download/?file` | `/etc/passwd` | `shop/views.py:73` | **validated**: system file content in the response |
+| Open redirect, `GET /go/?url` | `https://dast-canary.invalid/` | `shop/views.py:82` | **validated**: redirected to the canary host |
+| SQL injection, `GET /api/orders/?customer` | `'` against `''` | `shop/views.py:106` | partial: a database error |
+</details>
+
+<details><summary><strong>Laravel shop</strong></summary>
+
+| Issue | Payload | Code | Proof |
+|---|---|---|---|
+| Command injection, `POST /tools/ping` (`host`) | `;expr 6383 + 839` | `app/Http/Controllers/ShopController.php:57` | **validated**: the target computed 7222 |
+| Path traversal, `GET /download?file` | `../../../../etc/passwd` | `app/Http/Controllers/ShopController.php:38` | **validated**: system file content |
+| Open redirect, `GET /go?url` | `https://dast-canary.invalid/` | `app/Http/Controllers/ShopController.php:43` | **validated**: redirected to the canary host |
+</details>
+
+<details><summary><strong>DVWA</strong></summary>
+
+| Issue | Payload | Code | Proof |
+|---|---|---|---|
+| Path traversal, `GET /vulnerabilities/fi/?page` | `/etc/passwd` | `vulnerabilities/fi/index.php:36` | **validated** |
+| Open redirect, `GET /vulnerabilities/open_redirect/source/low.php?redirect` | `https://dast-canary.invalid/` | `vulnerabilities/open_redirect/source/low.php:4` | **validated** |
+| SQL injection, `GET /vulnerabilities/brute/?username` | `'` | `vulnerabilities/brute/source/low.php:13` | partial: a database error |
+| SQL injection, `/vulnerabilities/sqli_blind/` | | | **left unlinked on purpose**: two separate code bugs fit it equally, so it stays Runtime only and *ambiguous* rather than guess |
+</details>
+
+### Applications we did not write (source analysis only)
+
+Scored against keys we labelled by reading their source. The *first run* column is the honest estimate for an unseen app: it was recorded before we changed anything for that app. The misses were then fixed in general ways, so the later columns are no longer blind.
+
+| App | First run: bugs found | Now: bugs found | Pairs with right route and parameter | Decoys reported |
+|---|---|---|---|---|
+| XVWA (PHP) | 9 / 10 | 10 / 10 | 9 / 9 | 0 / 2 |
+| bWAPP (PHP) | 12 / 14 | 14 / 14 | 11 / 11 | 0 / 2 |
+| Mutillidae (PHP) | – | 20 / 20 | 17 / 17 | – |
+| Vulpy (two versions), VAmPI, Vulnerable-Flask-App (Python) | 20 / 26 | 24 / 26 | 7 / 7 | 0 / 13 |
+| DVWA (PHP) | – | 18 / 18 | 18 / 18 | 0 / 10 |
+
+### Dependency analysis (the bonus note)
+
+| App | Result |
+|---|---|
+| [sca/benchmarks/composer-app](sca/benchmarks/composer-app) (real, affected package versions) | 3 / 3 statuses as expected. `symfony/http-foundation` is **Reachable**: `index.php` → `HttpFoundationFactory::createRequest` → … → `HeaderUtils::split`, through another dependency. `symfony/yaml` is **Unknown** because `$parser->$action()` picks the method at runtime. `league/flysystem` is **Present-only**. |
+| A fresh Laravel 11 install (111 packages, 7,650 PHP files) | 4 / 4 **Unknown**, which is the correct answer: Laravel reaches app code through facades, the container and rules named by string, which a static call graph can't follow. About 4 s. |
+
+### Against the brief's targets
+
+| Measure | Good / Great | Ours |
+|---|---|---|
+| Code detection | > 60% / > 85% | 100% on our apps; 86–90% on a first, blind run of held-out PHP apps and 77% on Python |
+| Runtime detection | > 50% / > 80% | 11 / 11 on DVWA |
+| Correct links | > 50% / > 80% | 86–100% on five apps |
+| Wrong links | < 20% / < 5% | 0 in every run |
+| False alarms | < 30% / < 10% | 0 decoys reported |
+| Unseen app | > 40% / > 65% | **Not measured end to end.** The held-out apps above are source-only. Our own apps are a best case |
+| Run time | < 15 min / < 5 min | 25–93 s on the shops; 8 min 15 s on DVWA, which used its whole runtime budget |
 
 ## Open-source software used
 
-Open-source scanners and libraries are used where noted. **The route map, the taint interpreter, the finding merge, the five DAST probes, the correlation logic, the ranking and
-the re-test loop are our own work.**
+**The route map, the taint interpreter, the finding merge, the five DAST probes, the correlation logic, the ranking, the re-test loop and the dependency call graph are our own work.**
 
 | Software | Used for |
 |---|---|
-| [Semgrep](https://github.com/semgrep/semgrep) | Runs the SAST pattern rules. The rules ([PHP](sast-engine/sast/rules/php.yml), [Python](sast-engine/sast/rules/python.yml)) are ours |
-| [tree-sitter](https://github.com/tree-sitter/py-tree-sitter), [tree-sitter-php](https://github.com/tree-sitter/tree-sitter-php) | Parses PHP. Python is parsed with the standard library `ast` module |
+| [Semgrep](https://github.com/semgrep/semgrep) | Runs the SAST pattern rules; the rules ([PHP](sast-engine/sast/rules/php.yml), [Python](sast-engine/sast/rules/python.yml)) are ours |
+| [tree-sitter](https://github.com/tree-sitter/py-tree-sitter), [tree-sitter-php](https://github.com/tree-sitter/tree-sitter-php) | Parsing PHP (Python uses the standard library `ast`) |
 | [httpx](https://www.python-httpx.org/), [Beautiful Soup](https://www.crummy.com/software/BeautifulSoup/), [lxml](https://lxml.de/) | DAST requests, crawling and HTML parsing |
 | [FastAPI](https://fastapi.tiangolo.com/), [Uvicorn](https://www.uvicorn.org/), [React](https://react.dev/), [Vite](https://vite.dev/) | The web workspace |
-| [Groq API](https://console.groq.com/) (model `openai/gpt-oss-120b`), optionally OpenAI | The optional AI-assisted re-test step; off unless a key is configured |
+| [OSV](https://osv.dev/), [GitHub advisories](https://github.com/advisories), [FIRST EPSS](https://www.first.org/epss/), [CISA KEV](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) | Public vulnerability data for the dependency analysis |
+| [Groq API](https://console.groq.com/) (`openai/gpt-oss-120b`) | The optional AI-assisted step; off without a key |
 | [OWASP ZAP](https://www.zaproxy.org/), [Nuclei](https://github.com/projectdiscovery/nuclei) | Optional alternate DAST backends; off by default |
-| [DVWA](https://github.com/digininja/DVWA), [Mutillidae](https://github.com/webpwnized/mutillidae), [bWAPP](https://github.com/raesene/bWAPP), [XVWA](https://github.com/s4n7h0/xvwa), [Vulpy](https://github.com/fportantier/vulpy), [VAmPI](https://github.com/erev0s/VAmPI), [Vulnerable-Flask-App](https://github.com/we45/Vulnerable-Flask-App) | Benchmark applications used only to measure accuracy |
+| [DVWA](https://github.com/digininja/DVWA), [Mutillidae](https://github.com/webpwnized/mutillidae), [bWAPP](https://github.com/raesene/bWAPP), [XVWA](https://github.com/s4n7h0/xvwa), [Vulpy](https://github.com/fportantier/vulpy), [VAmPI](https://github.com/erev0s/VAmPI), [Vulnerable-Flask-App](https://github.com/we45/Vulnerable-Flask-App) | Benchmark applications, used only to measure accuracy |
 
-The CVSS v3.0 scoring follows the [FIRST specification](https://www.first.org/cvss/v3.0/specification-document).
+CVSS scoring follows the [FIRST v3.0 specification](https://www.first.org/cvss/v3.0/specification-document).
 
-## Analyst interface
+## Limits
 
-The [web workspace](web/README.md) runs local scans and opens the combined report. Choose **Custom application** (any source folder and the URL where it runs), DVWA, OWASP Juice Shop, or one of the bundled benchmark shops (PHP or Python); select SAST and/or DAST; follow progress and logs; inspect findings, source routes, coverage, conflicts, and compare completed scans. It exports JSON, standalone HTML, and SARIF. SAST hints are enabled by default; full route-map expansion is optional because it can consume DAST's budget on larger apps. After installing its dependencies and building the frontend:
+- **Our apps are a best case.** We wrote the shops and their keys. The honest estimate for an unseen app is the held-out table above, and no unseen app has been run end to end.
+- **SQL injection is usually *partial* proof**, not a validated one: a database error or a quote differential shows the input reaches the query, not that data can be read.
+- **A runtime scan can run out of time** on a large app. The report says how many inputs were tested; a Code only issue then means *not proven*, not *safe*.
+- **Not covered:** DOM XSS; aiohttp, Tornado and Sanic routes; and a black-box blind spot when code force-appends a suffix to a traversed path (SAST still reports it as Code only).
+- **Dependency analysis** covers Composer only and needs the dependency source (`vendor/`); without it, every row is Unknown. Python lockfiles are not supported yet.
 
-```sh
-web/.venv/bin/python -m web.server --example
-```
+## Repository
 
-Open **http://127.0.0.1:8000**. The selected app must already be running locally. The UI limits scan targets to `localhost` and `127.0.0.1`, and shows the full SAST + DAST + correlation elapsed time. SAST supports PHP and Python; Juice Shop runs DAST only.
-
-## Running everything on the benchmark shop
-
-Each engine has its own virtual environment; see its README. The shop is deliberately vulnerable and listens on `127.0.0.1` only.
-
-```sh
-# 1. SAST reads the source and writes routes.json
-cd sast-engine
-.venv/bin/python -m sast.cli scan benchmarks/shop --out out/shop
-
-# 2. Start the shop
-docker compose -f benchmarks/shop/docker-compose.yml up -d --build
-
-# 3. DAST tests the running shop, using SAST's route map and hints
-cd ../dast-engine
-.venv/bin/python main.py scan --target http://127.0.0.1:8088 --config config.yaml \
-    --route-map ../sast-engine/out/shop/routes.json --hints ../sast-engine/out/shop/hints.json --output output/shop.json
-
-# 4. Check both outputs against the shared format
-cd ..
-sast-engine/.venv/bin/python common/validate.py sast-engine/out/shop/findings.common.json dast-engine/output/shop.common.json
-
-# 5. Join them into issues
-sast-engine/.venv/bin/python -m correlator.cli --sast sast-engine/out/shop/findings.common.json \
-    --dast dast-engine/output/shop.common.json --out out/issues.json
-
-# 6. Stop the shop
-docker compose -f sast-engine/benchmarks/shop/docker-compose.yml down
-```
-
-The correlator only needs `jsonschema`, which the SAST environment already has.
-
-## Running everything on the Python benchmark shop
-
-Same steps, with the Flask shop on port 8089. SAST picks the language from the files (`--language python` forces it):
-
-```sh
-cd sast-engine
-.venv/bin/python -m sast.cli scan benchmarks/pyshop --out out/pyshop
-docker compose -f benchmarks/pyshop/docker-compose.yml up -d --build
-cd ../dast-engine
-.venv/bin/python main.py scan --target http://127.0.0.1:8089 --config pyshop.yaml \
-    --route-map ../sast-engine/out/pyshop/routes.json --hints ../sast-engine/out/pyshop/hints.json --output output/pyshop.json
-cd ..
-sast-engine/.venv/bin/python -m correlator.cli --sast sast-engine/out/pyshop/findings.common.json \
-    --dast dast-engine/output/pyshop.common.json --out out/pyshop_issues.json
-sast-engine/.venv/bin/python correlator/eval/score_links.py out/pyshop_issues.json sast-engine/eval/keys/pyshop.json
-docker compose -f sast-engine/benchmarks/pyshop/docker-compose.yml down
-```
-
-`pyshop.yaml` drops `logout` and `reset` from the denylist because pyshop's are harmless and carry a bug the key expects; DAST skips `DELETE` endpoints unless given `--allow-destructive`.
-
-## Tests
-
-Run these from the repo root:
-
-```sh
-(cd sast-engine && .venv/bin/python -m pytest)           # SAST
-(cd dast-engine && .venv/bin/python -m pytest)           # DAST
-sast-engine/.venv/bin/python -m pytest common/tests      # the shared format
-sast-engine/.venv/bin/python -m pytest correlator/tests  # the correlator
-sast-engine/.venv/bin/python -m pytest sca/tests         # reachability-aware SCA
-web/.venv/bin/python -m pytest cyberforge/tests web/tests  # the one-command scan, and the analyst workspace's API (needs pytest, httpx)
-(cd web && npm test -- --run)                             # the analyst workspace's UI
-```
-
-### Latest run (2026-11-01)
-
-| Suite | Result |
+| Folder | What it is |
 |---|---|
-| sast-engine | 349 passed |
-| dast-engine | 160 passed, 1 failed |
-| correlator | 159 passed |
-| common | 16 passed |
-| cyberforge (one-command scan, pytest) | 28 passed |
-| web (API, pytest) | 21 passed, 1 skipped |
-| web (UI, vitest) | 21 passed |
-| **Total** | **754 passed, 1 failed, 1 skipped** |
+| [cyberforge/](cyberforge/) | The one-command scan, `python -m cyberforge scan` |
+| [sast-engine/](sast-engine/README.md) | Static scanner for PHP and Python; builds the route map |
+| [dast-engine/](dast-engine/README.md) | Dynamic scanner with five attack probes |
+| [common/](common/FORMAT.md) | The finding format both scanners write |
+| [correlator/](correlator/README.md) | Links, merges, labels and ranks; re-tests Code only issues |
+| [sca/](sca/README.md) | Reachability-aware dependency analysis |
+| [web/](web/README.md) | The browser workspace and its API |
 
-Every Python suite was run in **one fresh virtual environment built only from the root `requirements.txt`** (`pip check` clean), which is what a judge's install is.
-The skipped test creates a symlink, which needs OS permission on Windows; it runs on Linux and in Docker.
+Tests, from the repository root:
 
-The one failure, `dast-engine/tests/test_main_cli.py::test_verify_tries_a_hinted_traversal_prefix_first`,
-is a test-environment issue, not a product bug: it shells out to `main.py verify` with a route argument
-that Git Bash's path conversion rewrites into a Windows path before Python ever sees it, on Windows only.
-It fails the same way with no code changes at all.
+```sh
+(cd sast-engine && .venv/bin/python -m pytest)                                   # SAST
+(cd dast-engine && .venv/bin/python -m pytest)                                   # DAST
+.venv/bin/python -m pytest sca/tests correlator/tests common/tests cyberforge/tests web/tests
+(cd web && npm test -- --run)                                                    # the interface
+```
 
-Two real, non-pre-existing issues surfaced and were fixed while producing this run:
-- `dast-engine/tests/fixtures/vuln_app.py`'s `/filtered_traversal` fixture used `os.path`/`os.path.join`
-  for its traversal check, which on Windows treats `\` as a separator and honors a drive letter as an
-  absolute-path override — letting two bypasses unrelated to the test's actual target ("backslash
-  traversal", "`C:\`-prefixed path") win before the intended "`....//`" filter-bypass technique could.
-  Rewritten with `posixpath` against a virtual root, so the fixture behaves like the Linux containers the
-  real benchmark apps run in, regardless of which OS runs the test.
-- `web/tests/test_server.py` read the real, developer-machine `out/scans/` history through a module-level
-  constant with no test isolation, so a report a test asked for by path could be silently outranked by
-  whatever scan happened to be newest on disk. Added an autouse fixture that points scan history at a
-  temp directory for the whole file.
+On the last full run: SAST 349, Python (dependency analysis, correlator, common format, scan command, web API) 372, interface 63, and DAST 160 passed with one failure. That failure, `test_verify_tries_a_hinted_traversal_prefix_first`, is out of date, not a product bug: the traversal probe now finds the bug without the hint the test expects to be needed.
