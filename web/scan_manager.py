@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 import sys
 import time
@@ -44,7 +45,7 @@ TARGETS = {
         "source": ROOT / "sast-engine" / "benchmarks" / "shop",
         "language": "php",
         "sast_supported": True,
-        "config": ROOT / "dast-engine" / "config.yaml",
+        "config": ROOT / "dast-engine" / "shop.yaml",
         "description": "Bundled PHP target. Start it with the repository Docker Compose file.",
     },
     "python_shop": {
@@ -55,6 +56,33 @@ TARGETS = {
         "sast_supported": True,
         "config": ROOT / "dast-engine" / "pyshop.yaml",
         "description": "Bundled Flask target. Start it with sast-engine/benchmarks/pyshop/docker-compose.yml.",
+    },
+    "fastshop": {
+        "name": "CyberForge FastAPI Shop",
+        "url": "http://127.0.0.1:8091",
+        "source": ROOT / "sast-engine" / "benchmarks" / "fastshop",
+        "language": "python",
+        "sast_supported": True,
+        "config": ROOT / "dast-engine" / "config.yaml",
+        "description": "Bundled FastAPI target. Start with uvicorn main:app --host 127.0.0.1 --port 8091 from sast-engine/benchmarks/fastshop.",
+    },
+    "laravel_shop": {
+        "name": "CyberForge Laravel Shop",
+        "url": "http://127.0.0.1:8092",
+        "source": ROOT / "sast-engine" / "benchmarks" / "lashop" / "overlay",
+        "language": "php",
+        "sast_supported": True,
+        "config": ROOT / "dast-engine" / "config.yaml",
+        "description": "Bundled Laravel 11 target. Start with docker compose -f sast-engine/benchmarks/lashop/docker-compose.yml up -d --build.",
+    },
+    "django_shop": {
+        "name": "CyberForge Django Shop",
+        "url": "http://127.0.0.1:8093",
+        "source": ROOT / "sast-engine" / "benchmarks" / "djshop",
+        "language": "python",
+        "sast_supported": True,
+        "config": ROOT / "dast-engine" / "config.yaml",
+        "description": "Bundled Django 5 target. Start with docker compose -f sast-engine/benchmarks/djshop/docker-compose.yml up -d --build.",
     },
 }
 
@@ -205,11 +233,11 @@ class ScanManager:
         if backend not in {"python", "none", "zap", "nuclei"}:
             raise ValueError("Choose a supported DAST backend.")
         try:
-            deadline = int(request.get("deadline_seconds", 150))
+            deadline = int(request.get("deadline_seconds", 480))
         except (ValueError, TypeError):
-            raise ValueError("Scan deadline must be between 30 and 900 seconds.") from None
-        if not 30 <= deadline <= 900:
-            raise ValueError("Scan deadline must be between 30 and 900 seconds.")
+            raise ValueError("Scan deadline must be between 30 and 600 seconds.") from None
+        if not 30 <= deadline <= 600:
+            raise ValueError("Scan deadline must be between 30 and 600 seconds.")
         base_path = request.get("base_path", "")
         if not isinstance(base_path, str) or (base_path and not re.fullmatch(r"/[A-Za-z0-9._~/-]+", base_path)):
             raise ValueError("Base path must be an empty path or start with / and contain only URL path characters.")
@@ -258,6 +286,85 @@ class ScanManager:
             self.jobs[scan_id] = job
             task = asyncio.create_task(self._run(scan_id, request, target, folder))
             self.tasks[scan_id] = task
+        return self.public_job(job)
+
+    async def start_investigation(self, scan_id: str, provider: str, model: str | None,
+                                  report: dict) -> dict:
+        """Start the correlator's bounded, opt-in AI investigation for a completed scan."""
+        from correlator.env import load_env
+        from correlator.planner import PROVIDERS
+
+        if provider not in PROVIDERS:
+            raise ValueError("Choose a supported AI provider.")
+        if model is not None and not isinstance(model, str):
+            raise ValueError("Model name must be text.")
+        model = model.strip() if isinstance(model, str) else ""
+        if len(model) > 120 or any(ord(char) < 32 for char in model):
+            raise ValueError("Model name must be 120 characters or fewer.")
+        load_env()
+        key_name = PROVIDERS[provider][1]
+        if not os.environ.get(key_name):
+            raise ValueError(f"{provider.title()} is not configured. Set {key_name} in the server environment or repository .env.")
+        if provider == "openai" and not model:
+            raise ValueError("Enter an OpenAI model id. The correlator's default model is intended for Groq.")
+
+        original = self.jobs.get(scan_id)
+        if not original or original.get("status") != "complete":
+            raise ValueError("Choose a completed live scan to investigate.")
+        current_report = self.latest_report
+        if not current_report or current_report.resolve() != Path(original["report_path"]).resolve():
+            raise ValueError("The selected scan is not the report currently open in the workspace.")
+        if original.get("options", {}).get("investigation"):
+            raise ValueError("An AI investigation report cannot start another investigation.")
+        if any(j.get("status") == "complete" and j.get("options", {}).get("source_scan_id") == scan_id
+               for j in self.jobs.values()):
+            raise ValueError("This scan already has an AI investigation report.")
+        sast_target = report.get("inputs", {}).get("sast", {}).get("target")
+        if not sast_target:
+            raise ValueError("This report has no source folder for the bounded investigation loop.")
+        source_path = Path(sast_target)
+        source_root = (source_path if source_path.is_absolute() else ROOT / source_path).resolve()
+        try:
+            source_root.relative_to(ROOT.resolve())
+        except ValueError:
+            raise ValueError("Investigation source must be inside this CyberForge workspace.") from None
+        if not source_root.is_dir():
+            raise ValueError("The scanned source folder is no longer available.")
+        runtime_target = report.get("inputs", {}).get("dast", {}).get("target", "")
+        try:
+            checked_target = self.validate_target_url(runtime_target)
+        except ValueError as exc:
+            raise ValueError("The report does not contain a valid local runtime target for investigation.") from exc
+        if urlsplit(checked_target).netloc.lower() != urlsplit(original["target_url"]).netloc.lower():
+            raise ValueError("Investigation must use the same local runtime target as the selected scan.")
+
+        scan_id_new = "ai-" + uuid.uuid4().hex[:10]
+        folder = OUT / scan_id_new
+        job = {
+            "id": scan_id_new,
+            "target_id": original["target_id"],
+            "target_name": original["target_name"],
+            "target_url": original["target_url"],
+            "status": "queued",
+            "stage": "Queued for AI investigation",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "started_at": None,
+            "completed_at": None,
+            "elapsed_seconds": None,
+            "options": {"investigation": True, "source_scan_id": scan_id,
+                        "provider": provider, "model": model or None},
+            "logs": [],
+            "error": None,
+            "report_path": str(folder / "issues.json"),
+            "gate": None,
+        }
+        async with self.lock:
+            active = [j for j in self.jobs.values() if j["status"] in {"queued", "running", "stopping"}]
+            if active:
+                raise ValueError("A scan or investigation is already running. Wait for it to finish first.")
+            self.jobs[scan_id_new] = job
+            task = asyncio.create_task(self._run_investigation(scan_id_new, scan_id, report, source_root, folder))
+            self.tasks[scan_id_new] = task
         return self.public_job(job)
 
     @staticmethod
@@ -407,6 +514,23 @@ class ScanManager:
             args = ["-m", "correlator.cli", "--sast", str(sast_common), "--dast", str(dast_common), "--out", str(output)]
             if base_path:
                 args += ["--base-path", base_path]
+            # Auto-verify (B-1) is part of the correlation engine, not a manual extra step: whenever both
+            # scans actually ran, every scan gets the deterministic round-1 re-test for free. A configured
+            # AI key additionally unlocks the bounded, bigger-picture round 2 -- no key, no network call,
+            # no cost; it only widens what round 1 already does safely with no third party involved.
+            investigation_included = False
+            if job["options"]["run_sast"] and job["options"]["run_dast"]:
+                args += ["--investigate", "--max-cases", "20", "--budget", "180",
+                         "--dast-python", str(DAST_PYTHON), "--dast-config", str(target["config"])]
+                investigation_included = True
+                from correlator.env import load_env
+                from correlator.planner import PROVIDERS
+
+                load_env()
+                provider = next((p for p in ("groq", "openai") if p in PROVIDERS and os.environ.get(PROVIDERS[p][1])), None)
+                if provider:
+                    args += ["--planner", provider, "--source-root", str(target["source"])]
+            job["options"]["investigation_included"] = investigation_included
             await self._command(scan_id, "Correlation", Path(PYTHON), args, ROOT)
             if not output.is_file():
                 raise RuntimeError("Correlation finished without writing issues.json.")
@@ -431,4 +555,58 @@ class ScanManager:
             job["completed_at"] = datetime.now(timezone.utc).isoformat()
             job["elapsed_seconds"] = round(time.monotonic() - started_clock, 2)
             self.processes.pop(scan_id, None)
+            self._persist_job(job)
+
+    async def _run_investigation(self, job_id: str, source_scan_id: str, report: dict,
+                                 source_root: Path, folder: Path):
+        job = self.jobs[job_id]
+        original = self.jobs[source_scan_id]
+        job["status"] = "running"
+        job["started_at"] = datetime.now(timezone.utc).isoformat()
+        started_clock = time.monotonic()
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+            def report_path(source: str) -> Path:
+                value = Path(report["inputs"][source]["path"])
+                return value.resolve() if value.is_absolute() else (ROOT / value).resolve()
+
+            sast_path, dast_path = report_path("sast"), report_path("dast")
+            for candidate in (sast_path, dast_path):
+                try:
+                    candidate.relative_to(ROOT.resolve())
+                except ValueError:
+                    raise RuntimeError("Investigation input report must be inside the CyberForge workspace.") from None
+                if not candidate.is_file():
+                    raise RuntimeError("The original SAST or DAST report is no longer available.")
+
+            target = TARGETS[original["target_id"]]
+            args = ["-m", "correlator.cli", "--sast", str(sast_path), "--dast", str(dast_path),
+                    "--out", str(folder / "issues.json"), "--investigate", "--planner",
+                    job["options"]["provider"], "--source-root", str(source_root),
+                    "--dast-engine", str(ROOT / "dast-engine"), "--dast-python", str(DAST_PYTHON),
+                    "--dast-config", str(target["config"]), "--max-cases", "20", "--budget", "180"]
+            if job["options"].get("model"):
+                args += ["--planner-model", job["options"]["model"]]
+            job["stage"] = "AI-assisted bounded retest and correlation"
+            await self._command(job_id, "Opt-in AI investigation", Path(PYTHON), args, ROOT)
+            output = Path(job["report_path"])
+            if not output.is_file():
+                raise RuntimeError("Investigation finished without writing its evidence report.")
+            self.latest_report = output
+            self.latest_job = job_id
+            job["status"] = "complete"
+            job["stage"] = "Investigation complete"
+        except asyncio.CancelledError:
+            job["status"] = "stopped"
+            job["stage"] = "Stopped"
+            await self._log(job_id, "Investigation stopped by operator.")
+        except Exception as exc:
+            job["status"] = "failed"
+            job["stage"] = "Failed"
+            job["error"] = str(exc)
+            await self._log(job_id, f"ERROR: {exc}")
+        finally:
+            job["completed_at"] = datetime.now(timezone.utc).isoformat()
+            job["elapsed_seconds"] = round(time.monotonic() - started_clock, 2)
+            self.processes.pop(job_id, None)
             self._persist_job(job)

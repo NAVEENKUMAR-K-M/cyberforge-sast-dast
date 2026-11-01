@@ -72,6 +72,39 @@ async def test_sqli_probe_silent_on_decoy_route(vuln_app_url):
     assert findings == [], "decoy (parameterised query, int-cast) must not be flagged"
 
 
+@pytest.mark.asyncio
+async def test_sqli_probe_finds_a_sort_column_pasted_into_order_by(vuln_app_url):
+    rm = make_rm(vuln_app_url)
+    try:
+        point = make_point(f"{vuln_app_url}/sorted_vuln?sort=id", "sort")
+        findings = await SqliProbe().detect(rm, point, None)
+    finally:
+        await rm.aclose()
+    assert [f.technique for f in findings] == ["error-differential-identifier"]
+
+
+@pytest.mark.asyncio
+async def test_sqli_probe_ignores_a_sort_column_checked_against_a_list(vuln_app_url):
+    rm = make_rm(vuln_app_url)
+    try:
+        point = make_point(f"{vuln_app_url}/sorted_decoy?sort=id", "sort")
+        findings = await SqliProbe().detect(rm, point, None, hinted=True)
+    finally:
+        await rm.aclose()
+    assert findings == []
+
+
+@pytest.mark.asyncio
+async def test_sqli_probe_reads_sqlites_near_token_syntax_error(vuln_app_url):
+    rm = make_rm(vuln_app_url)
+    try:
+        point = make_point(f"{vuln_app_url}/sqlite_near?q=a", "q")
+        findings = await SqliProbe().detect(rm, point, None)
+    finally:
+        await rm.aclose()
+    assert [f.technique for f in findings] == ["error-based"]
+
+
 # --- XSS -----------------------------------------------------------------
 
 @pytest.mark.asyncio
@@ -223,6 +256,21 @@ async def test_path_traversal_probe_detects_vulnerable_route(vuln_app_url):
     assert len(findings) == 1
     assert findings[0].cwe == "CWE-22"
     assert findings[0].url == url
+
+
+@pytest.mark.asyncio
+async def test_path_traversal_probe_defeats_a_single_pass_blacklist(vuln_app_url):
+    """/filtered_traversal strips "../" once, so a plain "../" sequence never reaches root, and the
+    filter-bypass tier has to actually run within the hinted budget, not just exist in the payload list."""
+    rm = make_rm(vuln_app_url)
+    try:
+        url = f"{vuln_app_url}/filtered_traversal?page=readme.txt"
+        point = make_point(url, "page")
+        findings = await PathTraversalProbe().detect(rm, point, baseline=None, hinted=True)
+    finally:
+        await rm.aclose()
+    assert len(findings) == 1
+    assert findings[0].payload.startswith("....")
 
 
 @pytest.mark.asyncio

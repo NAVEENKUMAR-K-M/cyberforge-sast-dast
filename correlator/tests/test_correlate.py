@@ -153,6 +153,57 @@ def test_two_different_handlers_mean_no_link():
     assert labels(result) == ["Code only", "Code only", "Runtime only"]
 
 
+def test_fixed_runtime_context_resolves_a_dispatch_ambiguity():
+    """DVWA-shaped case: two candidates are branches of the same `include $var`, and the scan's own
+    pinned post-login state (never changed again, since the setup page is denylisted) says which
+    branch ran -- real evidence, not a guess, so this one should link instead of staying ambiguous."""
+    low = sast("s1", file="low.php")
+    low["code"]["conditions"] = ["$vulnerabilityFile == 'low.php'"]
+    medium = sast("s2", file="medium.php")
+    medium["code"]["conditions"] = ["$vulnerabilityFile == 'medium.php'"]
+    result = correlate(
+        {"source": "sast", "target": "src", "findings": [low, medium]},
+        {"source": "dast", "target": "http://h", "findings": [dast("d1")],
+         "stats": {"coverage": {"fixed_runtime_context": {"security": "low"}}}},
+    )
+    assert labels(result) == ["Code only", "Confirmed"]
+    confirmed = next(i for i in result["issues"] if i["label"] == "Confirmed")
+    assert confirmed["evidence"]["code"][0]["code"]["file"] == "low.php"
+
+
+def test_fixed_runtime_context_narrows_without_forcing_a_pick_among_one_branch():
+    """DVWA's low.php itself builds two separately chosen queries (one per database driver): knowing
+    the branch was low.php narrows away medium.php, but the two low.php candidates are still two real,
+    separately-built bugs that one runtime hit can't tell apart -- stays ambiguous, with fewer candidates."""
+    low_mysql = sast("s1", file="low.php", built_at=10)
+    low_mysql["code"]["conditions"] = ["$vulnerabilityFile == 'low.php'"]
+    low_sqlite = sast("s2", file="low.php", built_at=30)
+    low_sqlite["code"]["conditions"] = ["$vulnerabilityFile == 'low.php'"]
+    medium = sast("s3", file="medium.php")
+    medium["code"]["conditions"] = ["$vulnerabilityFile == 'medium.php'"]
+    result = correlate(
+        {"source": "sast", "target": "src", "findings": [low_mysql, low_sqlite, medium]},
+        {"source": "dast", "target": "http://h", "findings": [dast("d1")],
+         "stats": {"coverage": {"fixed_runtime_context": {"security": "low"}}}},
+    )
+    runtime = next(i for i in result["issues"] if i["label"] == "Runtime only")
+    assert runtime["ambiguous"] is True
+    assert len(runtime["candidates"]) == 2
+
+
+def test_fixed_runtime_context_leaves_it_ambiguous_without_a_shared_guard():
+    """The same pinned context must not resolve candidates that aren't actually branches of one
+    dispatch -- two unrelated handlers with no conditions at all stay ambiguous, same as always."""
+    result = correlate(
+        {"source": "sast", "target": "src", "findings": [sast("s1", file="x.php"), sast("s2", file="y.php")]},
+        {"source": "dast", "target": "http://h", "findings": [dast("d1")],
+         "stats": {"coverage": {"fixed_runtime_context": {"security": "low"}}}},
+    )
+    assert result["links"] == []
+    runtime = next(i for i in result["issues"] if i["label"] == "Runtime only")
+    assert runtime["ambiguous"] is True and len(runtime["candidates"]) == 2
+
+
 def test_only_a_suppressed_match_is_a_conflict_not_an_issue():
     result = run([sast("s1", status="suppressed", reason="bound query parameter")], [dast("d1")])
     assert result["issues"] == []

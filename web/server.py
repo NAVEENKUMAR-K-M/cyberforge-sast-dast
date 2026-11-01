@@ -80,6 +80,11 @@ def create_app(report_path: Path | str = "out/issues.json", *, example: bool = F
         source = report["inputs"]["sast"].get("target", "")
         name = Path(source.rstrip("/")).name or "Application"
         latest = scans.get_job(scans.latest_job) if scans.latest_job else None
+        opts = latest.get("options", {}) if latest else {}
+        is_followup_job = bool(opts.get("investigation"))
+        if is_followup_job:
+            latest = scans.get_job(opts.get("source_scan_id")) or latest
+        investigation_run = is_followup_job or bool(opts.get("investigation_included"))
         return {
             "report": report,
             "scan": {
@@ -94,6 +99,7 @@ def create_app(report_path: Path | str = "out/issues.json", *, example: bool = F
                 "scan_id": scans.latest_job,
                 "target_id": latest["target_id"] if latest else None,
                 "elapsed_seconds": latest["elapsed_seconds"] if latest else None,
+                "investigation_run": investigation_run,
             },
         }
 
@@ -101,10 +107,32 @@ def create_app(report_path: Path | str = "out/issues.json", *, example: bool = F
     def get_targets():
         return {"targets": scans.targets()}
 
+    @app.get("/api/ai/status")
+    def ai_status():
+        from correlator.env import load_env
+        from correlator.planner import PROVIDERS
+        import os
+
+        load_env()
+        return {"providers": [
+            {"id": provider, "label": provider.title(), "configured": bool(os.environ.get(key_name))}
+            for provider, (_, key_name, _) in PROVIDERS.items()
+        ], "ready": any(os.environ.get(key_name) for _, key_name, _ in PROVIDERS.values())}
+
     @app.post("/api/scans")
     async def start_scan(request: dict):
         try:
             return await scans.start(request)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from None
+
+    @app.post("/api/scans/{scan_id}/investigate")
+    async def investigate_scan(scan_id: str, request: dict):
+        if request.get("consent") is not True:
+            raise HTTPException(400, "Confirm the AI data-sharing notice before starting.")
+        try:
+            report = read_report()
+            return await scans.start_investigation(scan_id, request.get("provider"), request.get("model"), report)
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from None
 

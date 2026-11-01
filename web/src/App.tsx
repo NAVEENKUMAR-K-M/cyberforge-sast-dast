@@ -3,6 +3,7 @@ import {
   ArrowDownToLine,
   ArrowLeft,
   ArrowUpRight,
+  BrainCircuit,
   Check,
   ChevronDown,
   ChevronRight,
@@ -27,6 +28,7 @@ import {
 } from "./lib";
 import type { Finding, Issue, Report, Workspace } from "./types";
 import { ScanLauncher } from "./ScanLauncher";
+import { AIAssistant } from "./AIAssistant";
 
 const EMPTY_FILTERS: Filters = {
   search: "",
@@ -292,6 +294,14 @@ function IssueDetail({
           >
             {issue.label}
           </Badge>
+          {issue.investigation?.ai_assisted && (
+            <span
+              className="capability-tag ai-tag"
+              title="An AI-proposed follow-up test produced the runtime evidence this finding is linked on."
+            >
+              <BrainCircuit size={12} /> AI-assisted
+            </span>
+          )}
           <span className="muted">{issue.cwe}</span>
           {issue.stored && <span className="muted">Stored flow</span>}
           {!issue.reportable && <Badge>Held back</Badge>}
@@ -331,6 +341,14 @@ function IssueDetail({
                 match
               </p>
             ))}
+            {issue.investigation?.ai_assisted && (
+              <p className="link-basis ai-note">
+                <BrainCircuit size={13} /> The runtime evidence above came
+                from a follow-up test an AI provider proposed during
+                investigation; the correlator alone decided it counted as
+                proof.
+              </p>
+            )}
           </>
         ) : (
           <p>
@@ -631,10 +649,9 @@ function Review({ report }: { report: Report }) {
   return (
     <div className="review-view">
       <div className="section-intro">
-        <h2>Conflicting evidence</h2>
+        <h2>{report.conflicts.length ? "Conflicting evidence" : "Correlation review"}</h2>
         <p>
-          A runtime test reported a weakness that source analysis marked safe.
-          These are kept separate from ranked issues for investigation.
+          Review disagreements and ambiguous links separately from ranked issues. The evidence remains available for analyst follow-up.
         </p>
       </div>
       {report.conflicts.map((conflict, i) => (
@@ -671,6 +688,15 @@ function Review({ report }: { report: Report }) {
           </details>
         </article>
       ))}
+      {!!report.issues.filter((issue) => issue.ambiguous).length && <section className="ambiguous-review">
+        <h2>Ambiguous correlations</h2>
+        <p>These candidates need analyst review because the available route or input evidence does not establish a unique link.</p>
+        {report.issues.filter((issue) => issue.ambiguous).map((issue) => <article className="conflict" key={issue.issue_id}>
+          <span className="eyebrow">{issue.issue_id} · {issue.cwe}</span><h3>{issue.title}</h3>
+          <p>{issue.candidates.length} candidate finding{issue.candidates.length === 1 ? "" : "s"}; current label: {issue.label}.</p>
+          {issue.routes.map((route) => <code key={route.path} className="block">{route.path}</code>)}
+        </article>)}
+      </section>}
     </div>
   );
 }
@@ -744,7 +770,7 @@ export default function App() {
   const [data, setData] = useState<Workspace | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<"findings" | "routes" | "coverage">("findings");
+  const [view, setView] = useState<"findings" | "routes" | "coverage" | "review">("findings");
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [review, setReview] = useState(false);
   const [selected, setSelected] = useState(() => window.location.hash.slice(1));
@@ -900,7 +926,6 @@ export default function App() {
           </Button>
         </div>
       </header>
-      <ScanLauncher onReportReady={() => void load()} />
       <main className="main-content">
         <div className="page-heading">
           <div>
@@ -930,17 +955,21 @@ export default function App() {
             </div>
           </details>
         </div>
+        <DemoOverview data={data} reportable={reportable} incomplete={status.incomplete} />
+        <ScanLauncher onReportReady={() => void load()} />
+        <CapabilityBoard data={data} />
         <nav className="view-nav" aria-label="Report views">
           <div className="tabs">
-            {(["findings", "routes", "coverage"] as const).map((tab) => (
+            {(["findings", "routes", "coverage", "review"] as const).map((tab) => (
               <button
                 key={tab}
                 aria-current={view === tab ? "page" : undefined}
                 className={view === tab ? "active" : ""}
                 onClick={() => setView(tab)}
               >
-                {tab === "findings" ? "Findings" : tab === "routes" ? "Routes" : "Coverage"}
+                {tab === "findings" ? "Findings" : tab === "routes" ? "Routes" : tab === "coverage" ? "Coverage" : "Need review"}
                 {tab === "findings" && <span>{reportable.length}</span>}
+                {tab === "review" && <span>{data.report.conflicts.length + data.report.issues.filter((item) => item.ambiguous).length}</span>}
               </button>
             ))}
           </div>
@@ -976,8 +1005,12 @@ export default function App() {
               setView("findings");
             }}
           />
+        ) : view === "review" ? (
+          <Review report={data.report} />
         ) : (
           <>
+            <AIAssistant scanId={data.scan.scan_id ?? null} example={data.scan.example}
+              investigationRun={data.scan.investigation_run} investigations={data.report.investigations} onComplete={load} />
             <div className="summary-line">
               <button
                 className={filters.label === "All" && !review ? "current" : ""}
@@ -1005,12 +1038,12 @@ export default function App() {
                   <span>{label.toLowerCase()}</span>
                 </button>
               ))}
-              {!!data.report.conflicts.length && (
+              {!!(data.report.conflicts.length + data.report.issues.filter((item) => item.ambiguous).length) && (
                 <button
                   className={cn("review-count", review && "current")}
                   onClick={() => setReview(!review)}
                 >
-                  {data.report.conflicts.length}
+                  {data.report.conflicts.length + data.report.issues.filter((item) => item.ambiguous).length}
                   <span>need review</span>
                 </button>
               )}
@@ -1198,6 +1231,14 @@ export default function App() {
                               >
                                 {i.label}
                               </Badge>
+                              {i.investigation?.ai_assisted && (
+                                <span
+                                  className="capability-tag ai-tag"
+                                  title="An AI-proposed follow-up test produced the runtime evidence this finding is linked on."
+                                >
+                                  <BrainCircuit size={11} /> AI-assisted
+                                </span>
+                              )}
                             </td>
                             <td>
                               <a
@@ -1308,4 +1349,61 @@ export default function App() {
       <ScanDetails data={data} dialog={dialog} />
     </div>
   );
+}
+
+function DemoOverview({ data, reportable, incomplete }: { data: Workspace; reportable: Issue[]; incomplete: boolean }) {
+  const count = (label: string) => reportable.filter((issue) => issue.label === label).length;
+  const seconds = data.scan.elapsed_seconds;
+  const runtime = seconds == null ? "Not recorded" : `${seconds.toFixed(1)} sec`;
+  const live = Boolean(data.scan.scan_id) && !data.scan.example;
+  return <section className="demo-overview" aria-label="Scan overview">
+    <div className="demo-flow" aria-label="Scan, correlate, investigate workflow">
+      <span className="capability-tag core-tag">Core · Scan</span><span aria-hidden="true">→</span>
+      <span className="capability-tag core-tag">Core · Correlate + auto-verify</span><span aria-hidden="true">→</span>
+      <span className="capability-tag ai-tag">Bonus · AI-assisted, when a provider is configured</span>
+      <span className={`report-kind ${data.scan.example ? "example-kind" : live ? "live-kind" : "imported-kind"}`}>
+        {data.scan.example ? "EXAMPLE REPORT · SAMPLE DATA" : live ? "LIVE SCAN REPORT" : "IMPORTED REPORT"}
+      </span>
+    </div>
+    <div className="demo-metrics">
+      <div><span>Target</span><code>{data.scan.target || data.scan.name}</code></div>
+      <div><span>Scan status</span><strong>{incomplete ? "Incomplete · review coverage" : "Report available"}</strong></div>
+      <div><span>Total run time</span><strong>{runtime}</strong></div>
+      <div><span>Confirmed</span><strong>{count("Confirmed")}</strong></div>
+      <div><span>Code only</span><strong>{count("Code only")}</strong></div>
+      <div><span>Runtime only</span><strong>{count("Runtime only")}</strong></div>
+      <div><span>Need review</span><strong>{data.report.conflicts.length + reportable.filter((issue) => issue.ambiguous).length}</strong></div>
+    </div>
+    <div className="capability-legend" aria-label="Capability legend">
+      <span><i className="legend-dot core-dot" /> Core PRD</span><span><i className="legend-dot bonus-dot" /> Bonus</span><span><i className="legend-dot ai-dot" /> AI-assisted, opt-in</span>
+    </div>
+  </section>;
+}
+
+function CapabilityBoard({ data }: { data: Workspace }) {
+  const limited = data.scan.target_id === "juice_shop";
+  const core = [
+    ["FR-1–FR-3", "SAST + DAST findings, shared report, CWE", "Available"],
+    ["FR-4–FR-5", "Source route map and code-to-runtime correlation", limited ? "Target-limited · JavaScript SAST unavailable" : "Available for supported source targets"],
+    ["FR-6–FR-9", "Duplicate grouping, issue labels, evidence, risk ranking", "Available"],
+    ["FR-10", "Scan controls and combined report", "Available"],
+  ];
+  const bonus = [
+    ["B-1", "Auto-verify Code only findings at runtime", "Available · runs automatically as part of correlation, bounded probes"],
+    ["B-2–B-4", "Suppression, link explanations, fix guidance", "Available where evidence supports it"],
+    ["B-5–B-6", "Scan comparison, SARIF, CI gate", "Available"],
+    ["B-7", "Language and framework support", "Target-limited · PHP and Python SAST; Juice Shop DAST"],
+  ];
+  return <details className="capability-board">
+    <summary><strong>PRD capability board</strong><span>Core and bonus delivery status for this workspace and target</span><ChevronRight size={15} /></summary>
+    <div className="capability-columns">
+      <div><h3><span className="capability-tag core-tag">Core · FR-1–FR-10</span></h3>{core.map(([id, name, state]) => <CapabilityRow key={id} id={id} name={name} state={state} tone="core" />)}</div>
+      <div><h3><span className="capability-tag bonus-tag">Bonus · B-1–B-7</span></h3>{bonus.map(([id, name, state]) => <CapabilityRow key={id} id={id} name={name} state={state} tone="bonus" />)}</div>
+      <div><h3><span className="capability-tag ai-tag">AI-assisted · automatic when configured</span></h3><CapabilityRow id="AI" name="AI-proposed follow-up test for unresolved findings" state="Runs automatically alongside auto-verify when a provider is configured; a model proposal never confirms a finding by itself" tone="ai" /></div>
+    </div>
+  </details>;
+}
+
+function CapabilityRow({ id, name, state, tone }: { id: string; name: string; state: string; tone: string }) {
+  return <div className={`capability-row ${tone}`}><strong>{id}</strong><span>{name}</span><small>{state}</small></div>;
 }

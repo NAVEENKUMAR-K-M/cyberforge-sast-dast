@@ -70,6 +70,7 @@ def test_a_re_test_that_shows_the_weakness_confirms_the_issue():
     assert first["effect"]["before"]["label"] == "Code only" and first["effect"]["after"]["label"] == "Confirmed"
     assert first["effect"]["linked"] is True and first["evidence"]["level"] == "validated"
     assert result["stats"]["upgraded"] == 1 and confirmed["investigation"]["outcome"] == "validated"
+    assert confirmed["investigation"]["ai_assisted"] is False          # round 1 alone proved it, no planner involved
     assert [f["id"] for f in new_dast["findings"]] == ["dast:new1"]                 # the evidence is kept for the report
 
 
@@ -101,7 +102,9 @@ def test_weak_evidence_keeps_the_case_open_and_the_next_round_uses_it():
     assert record["outcome"] == "validated" and len(record["rounds"]) == 2
     assert seen[0][0]["requests_sent"][0]["query"] == {"id": "'"} and seen[0][0]["outcome"] == "reproduced"
     assert ex.plans[1]["fields"] == {"mode": "full"} and ex.plans[1]["origin"] == "planner"
-    assert issue(result, "Confirmed")["runtime_verification"]["level"] == "validated"
+    confirmed = issue(result, "Confirmed")
+    assert confirmed["runtime_verification"]["level"] == "validated"
+    assert confirmed["investigation"]["ai_assisted"] is True          # round 2's planner-proposed test is what closed it
 
 
 def test_not_reproduced_is_not_safe():

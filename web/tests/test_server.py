@@ -72,3 +72,72 @@ def test_example_is_explicitly_labelled():
         data = client.get("/api/report").json()
     assert data["scan"]["example"] is True
     assert data["scan"]["name"] == "Benchmark shop"
+
+
+def test_target_catalog_includes_each_runnable_first_party_benchmark():
+    with TestClient(create_app(WEB / "example.issues.json", example=True)) as client:
+        targets = {item["id"]: item for item in client.get("/api/targets").json()["targets"]}
+    assert {"dvwa", "juice_shop", "benchmark_shop", "python_shop", "fastshop", "laravel_shop", "django_shop"} <= set(targets)
+    assert targets["fastshop"]["url"].endswith(":8091")
+    assert targets["laravel_shop"]["url"].endswith(":8092")
+    assert targets["django_shop"]["url"].endswith(":8093")
+    assert all(targets[key]["sast_supported"] for key in ("python_shop", "fastshop", "laravel_shop", "django_shop"))
+
+
+def test_ai_status_reports_configuration_without_returning_secret_values(monkeypatch):
+    monkeypatch.setenv("GROQ_API_KEY", "test-secret-groq-value")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-secret-openai-value")
+    with TestClient(create_app(WEB / "example.issues.json", example=True)) as client:
+        response = client.get("/api/ai/status")
+    assert response.status_code == 200
+    body = response.text
+    assert "test-secret" not in body
+    assert {provider["id"] for provider in response.json()["providers"]} == {"groq", "openai"}
+    assert all(provider["configured"] for provider in response.json()["providers"])
+
+
+def test_investigation_requires_explicit_data_sharing_consent():
+    with TestClient(create_app(WEB / "example.issues.json", example=True)) as client:
+        response = client.post("/api/scans/scan-id/investigate", json={"provider": "groq", "consent": False})
+    assert response.status_code == 400
+    assert "data-sharing" in response.json()["detail"]
+
+
+def test_investigation_reports_missing_provider_setup(monkeypatch):
+    monkeypatch.setenv("GROQ_API_KEY", "")
+    monkeypatch.setenv("OPENAI_API_KEY", "")
+    with TestClient(create_app(WEB / "example.issues.json", example=True)) as client:
+        response = client.post("/api/scans/scan-id/investigate", json={"provider": "groq", "consent": True})
+    assert response.status_code == 400
+    assert "not configured" in response.json()["detail"]
+
+
+def test_investigation_prevents_overlapping_runs(monkeypatch):
+    from datetime import datetime, timezone
+
+    from web.scan_manager import TARGETS
+
+    monkeypatch.setenv("GROQ_API_KEY", "test-provider-key")
+    with TestClient(create_app(WEB / "example.issues.json", example=True)) as client:
+        scans = client.app.state.scans
+        now = datetime.now(timezone.utc).isoformat()
+        scans.latest_report = WEB / "example.issues.json"
+        scans.jobs["source-scan"] = {
+            "id": "source-scan", "target_id": "benchmark_shop", "target_name": "Shop",
+            "target_url": TARGETS["benchmark_shop"]["url"], "status": "complete",
+            "report_path": str(WEB / "example.issues.json"), "options": {}, "created_at": now,
+        }
+        scans.jobs["active-scan"] = {"id": "active-scan", "status": "running", "created_at": now}
+        response = client.post("/api/scans/source-scan/investigate", json={"provider": "groq", "consent": True})
+    assert response.status_code == 400
+    assert "already running" in response.json()["detail"]
+
+
+def test_ai_status_can_report_missing_provider_without_secret_material(monkeypatch):
+    monkeypatch.setenv("GROQ_API_KEY", "")
+    monkeypatch.setenv("OPENAI_API_KEY", "")
+    with TestClient(create_app(WEB / "example.issues.json", example=True)) as client:
+        response = client.get("/api/ai/status")
+    assert response.status_code == 200
+    assert response.json()["ready"] is False
+    assert all(not provider["configured"] for provider in response.json()["providers"])

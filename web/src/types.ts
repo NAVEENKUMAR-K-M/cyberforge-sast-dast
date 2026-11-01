@@ -56,6 +56,7 @@ export type Issue = {
   risk_factors: string[];
   sast_ids: string[];
   dast_ids: string[];
+  investigation?: { case_id: string; outcome: string; stop_reason: string | null; rounds: number; ai_assisted: boolean } | null;
   cvss: {
     vector: string;
     base_score: number;
@@ -92,6 +93,13 @@ export type Report = {
     reason: string;
   }[];
   stats: Record<string, number>;
+  investigations?: {
+    case_id: string;
+    issue_id: string;
+    outcome: string;
+    stop_reason?: string | null;
+    rounds: { round: number; plan: Record<string, unknown>; requests_sent?: Record<string, unknown>[]; outcome: string; evidence?: Record<string, unknown> | null; effect?: Record<string, unknown> | null; error?: string | null }[];
+  }[];
 };
 export type Stats = Record<string, unknown> & {
   coverage?: Record<string, unknown>;
@@ -110,5 +118,6 @@ export type Workspace = {
     scan_id?: string | null;
     target_id?: string | null;
     elapsed_seconds?: number | null;
+    investigation_run?: boolean;
   };
 };

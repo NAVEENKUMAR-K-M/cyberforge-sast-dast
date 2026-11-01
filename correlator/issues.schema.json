@@ -129,7 +129,10 @@
           "type": "object",
           "description": "The outcome of re-testing this issue; the rounds are under investigations.",
           "required": ["case_id", "outcome", "stop_reason", "rounds"],
-          "properties": {"case_id": {"type": "string"}, "outcome": {"type": "string"}, "stop_reason": {"type": ["string", "null"]}, "rounds": {"type": "integer"}}
+          "properties": {
+            "case_id": {"type": "string"}, "outcome": {"type": "string"}, "stop_reason": {"type": ["string", "null"]}, "rounds": {"type": "integer"},
+            "ai_assisted": {"type": "boolean", "description": "A planner-proposed round, not just the deterministic round 1, produced the evidence this issue is linked on."}
+          }
         },
         "conflict": {"type": "boolean", "description": "The runtime evidence shows the weakness, but the code was marked safe."},
         "conflict_with": {"$ref": "#/$defs/ids"},

@@ -59,6 +59,33 @@ def sqli_decoy():
     return "<br>".join(r[0] for r in rows) or "no results"
 
 
+@app.route("/sorted_vuln")
+def sorted_vuln():
+    # A sort column pasted into ORDER BY, errors hidden: a bare 500, as with debug off.
+    try:
+        rows = _conn.execute("SELECT name FROM users ORDER BY " + request.args.get("sort", "id")).fetchall()
+    except sqlite3.Error:
+        return "error", 500
+    return "<br>".join(r[0] for r in rows)
+
+
+@app.route("/sorted_decoy")
+def sorted_decoy():
+    column = request.args.get("sort", "id")
+    if column not in ("id", "name"):  # a list of allowed columns: anything else falls back to the default
+        column = "id"
+    rows = _conn.execute("SELECT name FROM users ORDER BY " + column).fetchall()
+    return "<br>".join(r[0] for r in rows)
+
+
+@app.route("/sqlite_near")
+def sqlite_near():
+    # What SQLite says when the quote swallows the rest of the query: it names the token it stopped at.
+    if request.args.get("q", "") == "'":
+        return 'Fatal error: SQLSTATE[HY000]: General error: 1 near &quot;d41d8cd9&quot;: syntax error', 200
+    return "ok"
+
+
 # --- XSS (CWE-79) -----------------------------------------------------------
 @app.route("/xss")
 def xss_vuln():

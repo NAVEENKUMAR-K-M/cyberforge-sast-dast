@@ -33,6 +33,8 @@ traversal_sequences:
   - "%2e%2e/"
   - "..%252f"        # double-encoded
   - "..%00/"          # null-byte (percent-encoded; raw NUL is added separately in code)
+  - "....//"          # survives a filter that strips "../" once, leaving "../" behind
+  - "....\\\\"
 
 absolute_prefixes:
   - "/"

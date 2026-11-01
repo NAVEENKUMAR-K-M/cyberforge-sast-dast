@@ -38,6 +38,9 @@ sqlite:
   - "sqlite3.operationalerror:"
   - "sqlite_error"
   - "near \"\": syntax error"
+  # SQLite names the token it stopped at, and the token is whatever followed the quote.
+  - 're:near (?:"|&quot;|&#039;)[^"&<]{0,80}(?:"|&quot;|&#039;): syntax error'
+  - "unterminated string literal"
   - "unrecognized token"
   - "sqlite3.programmingerror"
   - "no such column:"
@@ -66,3 +69,18 @@ python:
   - "peewee.operationalerror"
   - "asyncpg.exceptions."
   - "tortoise.exceptions."
+
+# What other stacks print when a query breaks. The database driver's own words are matched above; these
+# are the wrappers around them, which an app shows even when it rewrites the driver message.
+wrappers:
+  - "uncaught pdoexception"
+  - "sqlstate["
+  - "pdostatement::execute"
+  - "java.sql.sqlsyntaxerrorexception"
+  - "java.sql.sqlexception"
+  - "org.hibernate.exception.sqlgrammarexception"
+  - "sequelizedatabaseerror"
+  - "activerecord::statementinvalid"
+  - "pg::syntaxerror"
+  - "pq: syntax error"
+  - "syntax error at or near"

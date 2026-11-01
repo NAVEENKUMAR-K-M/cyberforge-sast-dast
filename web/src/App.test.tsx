@@ -73,7 +73,7 @@ describe("analyst workspace", () => {
     expect(
       within(detail).getAllByText("app/lib/repositories.php:4").length,
     ).toBeGreaterThan(0);
-    expect(window.location.hash).toBe(`#${data.report.issues[0].issue_id}`);
+    await waitFor(() => expect(window.location.hash).toBe(`#${data.report.issues[0].issue_id}`));
     expect(screen.getByText("Coverage unavailable")).toBeTruthy();
   });
 
@@ -128,6 +128,57 @@ describe("analyst workspace", () => {
     expect(screen.getByText("4")).toBeTruthy();
   });
 
+  it("shows the judge-facing workflow, report kind, and PRD capability labels", async () => {
+    data.scan.example = true;
+    render(<App />);
+    expect(await screen.findByText("EXAMPLE REPORT · SAMPLE DATA")).toBeTruthy();
+    expect(screen.getByText("Core · Scan")).toBeTruthy();
+    expect(screen.getByText("Core · Correlate + auto-verify")).toBeTruthy();
+    expect(screen.getByText("Bonus · AI-assisted, when a provider is configured")).toBeTruthy();
+    await userEvent.click(screen.getByText(/PRD capability board/));
+    expect(screen.getByText("Core · FR-1–FR-10")).toBeTruthy();
+    expect(screen.getByText("Bonus · B-1–B-7")).toBeTruthy();
+    expect(screen.getByText("AI-assisted · automatic when configured")).toBeTruthy();
+  });
+
+  it("shows a distinct Need review view for conflicts", async () => {
+    data.report.conflicts = [{ sast_ids: ["sast:abc"], dast_ids: ["dast:def"], reason: "Review the conflicting evidence." }];
+    render(<App />);
+    await userEvent.click(await screen.findByRole("button", { name: /Need review/ }));
+    expect(screen.getByRole("heading", { name: "Conflicting evidence" })).toBeTruthy();
+    expect(screen.getByText("Review the conflicting evidence.")).toBeTruthy();
+  });
+
+  it("separates an AI follow-up plan from executed runtime evidence and its stop reason", async () => {
+    data.report.investigations = [{
+      case_id: "case-1", issue_id: data.report.issues[0].issue_id, outcome: "unresolved",
+      stop_reason: "budget exhausted", rounds: [{ round: 2, plan: { method: "GET", location: "query" },
+        requests_sent: [{ method: "GET", url: "http://127.0.0.1:8088/search?q=test", status: 200, length: 42 }],
+        outcome: "no reproduction", evidence: { level: "unchecked", reason: "No validated signal." } }],
+    }];
+    render(<App />);
+    expect(await screen.findByText("Investigation outcomes")).toBeTruthy();
+    expect(screen.getByText("Stop reason: budget exhausted")).toBeTruthy();
+    expect(screen.getByText("Planned request fields:")).toBeTruthy();
+    expect(screen.getByText("Requests actually sent (1):")).toBeTruthy();
+    expect(screen.getByText(/Only runtime evidence accepted by the correlator/)).toBeTruthy();
+  });
+
+  it("keeps many investigation outcomes inside a bounded, scrollable list rather than growing the page", async () => {
+    data.report.investigations = Array.from({ length: 15 }, (_, i) => ({
+      case_id: `case-${i}`, issue_id: data.report.issues[0].issue_id, outcome: "unresolved",
+      stop_reason: "round limit reached", rounds: [{ round: 1, plan: { method: "GET", location: "query" },
+        requests_sent: [], outcome: "no reproduction", evidence: null }],
+    }));
+    render(<App />);
+    expect(await screen.findByText("15 cases · AI proposal is not proof")).toBeTruthy();
+    const summaries = screen.getAllByText("round limit reached", { exact: false });
+    expect(summaries).toHaveLength(15);
+    const scrollBox = document.querySelector(".ai-outcomes-scroll")!;
+    expect(scrollBox).toBeTruthy();
+    expect(scrollBox.querySelectorAll("details")).toHaveLength(15);
+  });
+
   it("renders payloads as text rather than interpreting HTML", async () => {
     data.report.issues[0].evidence.runtime[0].runtime!.payload =
       '<img src=x onerror="alert(1)">';
@@ -157,6 +208,27 @@ describe("analyst workspace", () => {
         "Bound query parameter conflicts with runtime evidence.",
       ),
     ).toBeTruthy();
+  });
+
+  it("tags a finding as AI-assisted only when a planner round produced the link", async () => {
+    const [assisted, plain] = data.report.issues;
+    assisted.investigation = {
+      case_id: "case-ai", outcome: "validated", stop_reason: "the runtime evidence shows the weakness itself",
+      rounds: 2, ai_assisted: true,
+    };
+    plain.investigation = {
+      case_id: "case-plain", outcome: "unresolved", stop_reason: "round limit reached", rounds: 2, ai_assisted: false,
+    };
+    render(<App />);
+    const assistedLink = await screen.findByRole("link", { name: assisted.title });
+    const assistedRow = assistedLink.closest("tr")!;
+    expect(within(assistedRow).getByText("AI-assisted")).toBeTruthy();
+    const plainRow = screen.getByRole("link", { name: plain.title }).closest("tr")!;
+    expect(within(plainRow).queryByText("AI-assisted")).toBeNull();
+    await userEvent.click(assistedLink);
+    const detail = await screen.findByRole("complementary", { name: "Finding details" });
+    expect(within(detail).getByText("AI-assisted")).toBeTruthy();
+    expect(within(detail).getByText(/an AI provider proposed/)).toBeTruthy();
   });
 
   it("explains report-loading failures and offers retry", async () => {

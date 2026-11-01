@@ -250,8 +250,14 @@ def run_loop(sast_doc: dict, dast_doc: dict, executor, planner=None, *, base_pat
     for issue in result["issues"]:
         mine = next((r for r in records.values() if r["issue_id"] == issue["issue_id"]), None)
         if mine:
+            # True only when a planner-proposed round (not the deterministic round 1) is the one whose
+            # evidence is actually linked into this issue -- an AI proposal that was tried and didn't
+            # pan out, or wasn't needed because round 1 already proved it, doesn't earn the tag.
+            ai_assisted = any(r["plan"].get("origin") == "planner" and r["effect"] and r["effect"]["linked"]
+                              for r in mine["rounds"])
             issue["investigation"] = {"case_id": mine["case_id"], "outcome": mine["outcome"],
-                                      "stop_reason": mine["stop_reason"], "rounds": len(mine["rounds"])}
+                                      "stop_reason": mine["stop_reason"], "rounds": len(mine["rounds"]),
+                                      "ai_assisted": ai_assisted}
     result["investigations"] = [records[c["case_id"]] for c in cases]
     result["stats"]["investigated"] = len(cases)
     result["stats"]["upgraded"] = sum(1 for r in result["investigations"] if any(

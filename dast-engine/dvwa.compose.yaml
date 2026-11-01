@@ -4,7 +4,7 @@ target: "http://dvwa"
 allowlist:
   - "dvwa"
 
-deadline_seconds: 150
+deadline_seconds: 480
 report_reserve_seconds: 15
 start_rps: 25
 floor_rps: 5

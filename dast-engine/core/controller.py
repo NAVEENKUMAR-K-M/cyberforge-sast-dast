@@ -138,6 +138,7 @@ async def run_scan(config: dict) -> dict:
 
     finished_at = time.time()
     coverage["session_relogins"] = session.relogins
+    coverage["fixed_runtime_context"] = _fixed_runtime_context(config.get("auth", {}))
     output = build_output(
         all_findings,
         target=target,
@@ -150,6 +151,17 @@ async def run_scan(config: dict) -> dict:
     )
     write_output(output, config.get("output_path", "output/dast_results.json"))
     return output
+
+
+def _fixed_runtime_context(auth_cfg: dict) -> dict:
+    """Field values the config pins once after login and never changes again (e.g. DVWA's difficulty
+    level), merged into one dict. When a SAST finding's guard condition names one of these same literal
+    values, the correlator can use it to tell apart otherwise-ambiguous candidates -- not a guess, since
+    the config's own denylist keeps whatever sets these fields from running again mid-scan."""
+    merged: dict = {}
+    for action in auth_cfg.get("post_login") or []:
+        merged.update(action.get("fields") or {})
+    return merged
 
 
 def _route_map_pages(route_map: list[dict], target: str, scope_guard: ScopeGuard) -> list[str]:

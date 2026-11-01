@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from collections import Counter, defaultdict
 from functools import lru_cache
 from pathlib import Path
@@ -261,6 +262,41 @@ def _base_path(explicit, dast_doc) -> str:
     return urlparse(dast_doc.get("target", "")).path.rstrip("/")
 
 
+_INCLUDE_GUARD = re.compile(r"^(.+) == '([^']*)'$")
+
+
+def _resolve_by_fixed_context(strong: set, code_groups: list, fixed_context: dict) -> set:
+    """Several candidates can be mutually exclusive branches of the same `include $var` (e.g. DVWA's
+    difficulty level picks low.php / medium.php / high.php): SAST records that as one condition per
+    branch, `"{var} == '{file}'"`. When the scan's own fixed post-login state (set once, then
+    denylisted from changing again) says which value was active the whole run, that rules out every
+    branch but the one that was actually live -- real evidence, not a guess. Candidates can still
+    share that one branch without being the same bug (DVWA's low.php itself builds two separately
+    chosen queries, one per database driver): narrowing to them is still progress even when it can't
+    settle the two apart, so this returns the narrowed set rather than insisting on exactly one.
+    Returns `strong` unchanged when the candidates aren't that shape or don't share a guard variable."""
+    if not fixed_context or len(strong) < 2:
+        return strong
+    per_group = {}
+    for index in strong:
+        guards = set()
+        for finding in code_groups[index]:
+            for condition in finding["code"].get("conditions") or []:
+                m = _INCLUDE_GUARD.match(condition)
+                if m:
+                    guards.add(m.groups())
+        if not guards:
+            return strong
+        per_group[index] = guards
+    variables = {var for guards in per_group.values() for var, _ in guards}
+    if len(variables) != 1:
+        return strong
+    values = {str(v) for v in fixed_context.values()}
+    narrowed = {index for index, guards in per_group.items()
+                if any(literal in values or literal.rsplit(".", 1)[0] in values for _, literal in guards)}
+    return narrowed or strong
+
+
 def correlate(sast_doc: dict, dast_doc: dict, base_path: str | None = None, sources: dict | None = None) -> dict:
     base = _base_path(base_path, dast_doc)
     open_code = [f for f in sast_doc["findings"] if f["status"] == "open"]
@@ -269,6 +305,7 @@ def correlate(sast_doc: dict, dast_doc: dict, base_path: str | None = None, sour
     group_of = {f["id"]: i for i, g in enumerate(code_groups) for f in g}
     code_ids = [_hash("issue", ["code", *(f["id"] for f in g)]) for g in code_groups]
     runtime_groups, app_wide = _runtime_groups(dast_doc["findings"], base)
+    fixed_context = dast_doc.get("stats", {}).get("coverage", {}).get("fixed_runtime_context") or {}
 
     linked = defaultdict(list)          # code group index -> runtime group keys
     link_records, conflicts, runtime_only = [], [], []
@@ -284,6 +321,11 @@ def correlate(sast_doc: dict, dast_doc: dict, base_path: str | None = None, sour
                 (strong if strength == "strong" else weak).add(group_of[s["id"]])
                 if strength == "strong":
                     bases.append((MATCH_KINDS.index(basis["kind"]), s["id"], d["id"], basis))
+        if len(strong) > 1:
+            narrowed = _resolve_by_fixed_context(strong, code_groups, fixed_context)
+            if narrowed != strong:
+                strong = narrowed
+                bases = [b for b in bases if group_of[b[1]] in strong]
         if len(strong) == 1:
             index = next(iter(strong))
             linked[index].append(key)

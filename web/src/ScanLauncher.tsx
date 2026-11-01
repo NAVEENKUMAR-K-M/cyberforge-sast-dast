@@ -21,7 +21,7 @@ type ScanJob = {
   started_at: string | null;
   completed_at: string | null;
   elapsed_seconds?: number | null;
-  options: { run_sast: boolean; run_dast: boolean; active_backend?: string; deadline_seconds?: number; sarif?: boolean; ci_gate?: boolean; semgrep?: boolean; web_root?: string; exclude?: string[] };
+  options: { run_sast?: boolean; run_dast?: boolean; investigation?: boolean; source_scan_id?: string; active_backend?: string; deadline_seconds?: number; sarif?: boolean; ci_gate?: boolean; semgrep?: boolean; web_root?: string; exclude?: string[] };
   logs: string[];
   error: string | null;
   report_path: string;
@@ -56,7 +56,7 @@ export function ScanLauncher({ onReportReady }: { onReportReady: () => void }) {
   const [runSast, setRunSast] = useState(true);
   const [runDast, setRunDast] = useState(true);
   const [backend, setBackend] = useState("python");
-  const [deadline, setDeadline] = useState(150);
+  const [deadline, setDeadline] = useState(480);
   const [basePath, setBasePath] = useState("");
   const [sarif, setSarif] = useState(true);
   const [ciGate, setCiGate] = useState(false);
@@ -109,7 +109,6 @@ export function ScanLauncher({ onReportReady }: { onReportReady: () => void }) {
           setTargetUrl(first.url);
           setRunSast(first.sast_supported && first.source_available);
           setUseRouteMap(first.id === "benchmark_shop");
-          if (first.id === "benchmark_shop") setDeadline(300);
         }
       } catch (e) {
         setError(e instanceof Error ? e.message : "Could not load scan options.");
@@ -224,12 +223,11 @@ export function ScanLauncher({ onReportReady }: { onReportReady: () => void }) {
       // its home page. Use its SAST route map by default; DVWA's much larger
       // map stays opt-in so its default scan can finish within the normal budget.
       setUseRouteMap(id === "benchmark_shop");
-      if (id === "benchmark_shop") setDeadline(300);
-      else setDeadline(150);
+      setDeadline(480);
     }
   }
 
-  const completed = history.filter((item) => item.status === "complete");
+  const completed = history.filter((item) => item.status === "complete" && !item.options.investigation);
   const newest = completed[0];
   const elapsedLabel = job?.elapsed_seconds != null
     ? formatElapsed(job.elapsed_seconds)
@@ -260,23 +258,6 @@ export function ScanLauncher({ onReportReady }: { onReportReady: () => void }) {
             Runtime URL
             <input value={targetUrl} onChange={(event) => setTargetUrl(event.target.value)} placeholder="http://localhost:8080" />
           </label>
-          <label>
-            DAST backend
-            <select value={backend} onChange={(event) => setBackend(event.target.value)}>
-              <option value="python">CyberForge active probes</option>
-              <option value="none">Passive checks only</option>
-              <option value="zap">OWASP ZAP</option>
-              <option value="nuclei">Nuclei</option>
-            </select>
-          </label>
-          <label>
-            Runtime budget (seconds)
-            <input type="number" min={30} max={900} step={30} value={deadline} onChange={(event) => setDeadline(Number(event.target.value))} />
-          </label>
-          <label>
-            URL base path
-            <input value={basePath} onChange={(event) => setBasePath(event.target.value)} placeholder="/app (optional)" />
-          </label>
           <div className="scan-engine-options" role="group" aria-label="Scanners to run">
             <label className="scan-check">
               <input type="checkbox" checked={runSast} disabled={!selectedTarget?.sast_supported || !selectedTarget.source_available} onChange={(event) => setRunSast(event.target.checked)} />
@@ -294,11 +275,14 @@ export function ScanLauncher({ onReportReady }: { onReportReady: () => void }) {
         <details className="scan-advanced">
           <summary>Advanced controls</summary>
           <div className="scan-advanced-grid">
+            <label>DAST backend<select value={backend} onChange={(event) => setBackend(event.target.value)}><option value="python">CyberForge active probes</option><option value="none">Passive checks only</option><option value="zap">OWASP ZAP</option><option value="nuclei">Nuclei</option></select></label>
+            <label>Runtime budget (seconds)<input type="number" min={30} max={600} step={30} value={deadline} onChange={(event) => setDeadline(Number(event.target.value))} /></label>
+            <label>URL base path<input value={basePath} onChange={(event) => setBasePath(event.target.value)} placeholder="/app (optional)" /></label>
             <label className="scan-check"><input type="checkbox" checked={sarif} onChange={(event) => setSarif(event.target.checked)} /><span><strong>Produce SAST SARIF</strong><small>Write a SARIF file with the static findings.</small></span></label>
             <label className="scan-check"><input type="checkbox" checked={ciGate} onChange={(event) => setCiGate(event.target.checked)} /><span><strong>CI gate</strong><small>Mark the gate failed for confirmed high or critical issues.</small></span></label>
             <label className="scan-check"><input type="checkbox" checked={semgrep} disabled={!runSast} onChange={(event) => setSemgrep(event.target.checked)} /><span><strong>Pattern rules</strong><small>Run Semgrep alongside taint analysis.</small></span></label>
             <label className="scan-check"><input type="checkbox" checked={useSastHints} disabled={!runSast || !runDast} onChange={(event) => setUseSastHints(event.target.checked)} /><span><strong>Prioritize SAST hints</strong><small>Probe discovered inputs linked to source findings first.</small></span></label>
-            <label className="scan-check"><input type="checkbox" checked={useRouteMap} disabled={!runSast || !runDast} onChange={(event) => setUseRouteMap(event.target.checked)} /><span><strong>Expand with SAST route map</strong><small>{selectedTarget?.id === "benchmark_shop" ? "Enabled by default for this target; the runtime budget is set to 300 seconds to cover the discovered handlers." : "Discovers more routes, but can use the DAST time budget before active probes finish."}</small></span></label>
+            <label className="scan-check"><input type="checkbox" checked={useRouteMap} disabled={!runSast || !runDast} onChange={(event) => setUseRouteMap(event.target.checked)} /><span><strong>Expand with SAST route map</strong><small>{selectedTarget?.id === "benchmark_shop" ? "Enabled by default for this target to cover the discovered handlers." : "Discovers more routes, but can use the DAST time budget before active probes finish."}</small></span></label>
             <label>Source web root<input value={webRoot} disabled={!runSast} onChange={(event) => setWebRoot(event.target.value)} placeholder="Detected automatically" /></label>
             <label>Exclude folders <span className="muted">one folder name per line</span><textarea disabled={!runSast} value={excludesText} onChange={(event) => setExcludesText(event.target.value)} rows={2} placeholder="vendor\nthird_party" /></label>
             <label>Login URL<input value={loginUrl} onChange={(event) => setLoginUrl(event.target.value)} placeholder="Optional; same local host and port" /></label>
@@ -328,9 +312,18 @@ export function ScanLauncher({ onReportReady }: { onReportReady: () => void }) {
         <div className={`scan-run-state ${job.status}`}>
           <div className="scan-run-heading">
             <div><span className="eyebrow">{job.status.toUpperCase()}</span><h3>{job.target_name} <span>·</span> {job.stage}</h3><code>{job.target_url}</code></div>
-            <span className="elapsed-chip"><Clock3 size={13} /> Total run time <strong>{elapsedLabel}</strong></span>
+            <span className="elapsed-chip"><Clock3 size={13} /> {job.options.investigation ? "Investigation time" : "Total run time"} <strong>{elapsedLabel}</strong></span>
             {job.gate && <span className={job.gate.passed ? "gate-passed" : "gate-failed"}>{job.gate.passed ? "CI gate passed" : "CI gate failed"} · {job.gate.count} blocking issues</span>}
           </div>
+          {!job.options.investigation && <ol className="scan-stage-rail" aria-label="Scan progress">
+            {["Source analysis", "Runtime analysis", "Correlating findings"].map((stage, index) => {
+              const current = String(job.stage || "");
+              const skipped = (index === 0 && job.options.run_sast === false) || (index === 1 && job.options.run_dast === false);
+              const done = job.status === "complete" || (index === 0 && /Runtime|Correlat|Complete/i.test(current)) || (index === 1 && /Correlat|Complete/i.test(current));
+              const activeStage = current.toLowerCase().includes(stage.split(" ")[0].toLowerCase());
+              return <li key={stage} className={skipped ? "skipped" : done ? "done" : activeStage ? "active" : ""}><span>{skipped ? "–" : done ? "✓" : index + 1}</span>{stage}{skipped ? " · skipped" : ""}</li>;
+            })}
+          </ol>}
           {!!job.error && <p className="notice notice-warning">{job.error}</p>}
           {!!job.logs.length && <details className="scan-log" open={active}><summary><Terminal size={14} /> Scan log <span>{job.logs.length} lines</span></summary><pre>{job.logs.join("\n")}</pre></details>}
           {job.status === "complete" && <p className="footnote">Combined report saved at <code>{job.report_path}</code>. The findings view refreshes when the scan completes.</p>}

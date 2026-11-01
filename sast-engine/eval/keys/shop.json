@@ -9,7 +9,7 @@
     {"id": "S5", "cwe": 89, "file": "app/public/account/orders.php", "route": "/account/orders.php", "param": "sort", "hard": "addslashes on an unquoted value, sink in a helper"},
     {"id": "S6", "cwe": 89, "file": "app/public/login.php", "route": "/login.php", "param": "username", "hard": "sprintf, sink in a helper"},
     {"id": "X1", "cwe": 79, "file": "app/templates/results.php", "route": "/search.php", "param": "q", "hard": "template with extract()"},
-    {"id": "X2", "cwe": 79, "file": "app/templates/product.php", "route": "/product.php", "param": "body", "stored": true, "hard": "stored through bound parameters, written by /reviews.php"},
+    {"id": "X2", "cwe": 79, "file": "app/templates/product.php", "route": "/product.php", "param": "body", "stored": true, "write_route": "/reviews.php", "hard": "stored through bound parameters, written by /reviews.php"},
     {"id": "X3", "cwe": 79, "file": "app/public/contact.php", "route": "/contact.php", "param": "name", "hard": "ENT_NOQUOTES inside a single-quoted attribute"},
     {"id": "X4", "cwe": 79, "file": "app/public/gallery.php", "route": "/gallery.php", "param": "img", "hard": "escaped value in an unquoted attribute"},
     {"id": "C1", "cwe": 78, "file": "app/public/tools/ping.php", "route": "/tools/ping.php", "param": "host"},

@@ -36,7 +36,7 @@ def _compile_signatures() -> list[re.Pattern]:
     patterns = []
     for group in sigs.values():
         for s in group:
-            patterns.append(re.compile(re.escape(s), re.I))
+            patterns.append(re.compile(s[3:] if s.startswith("re:") else re.escape(s), re.I))
     return patterns
 
 
@@ -44,6 +44,13 @@ def _numeric_seed(point: InjectionPoint) -> bool:
     """Whether the value this point normally carries is a whole number, or sits in the path where ids usually are."""
     location = point.param_location.value if hasattr(point.param_location, "value") else str(point.param_location)
     return str(point.seed_value).isdigit() or location == "path"
+
+
+SORTING_NAMES = {"sort", "order", "orderby", "order_by", "sortby", "sort_by", "sortorder", "column", "col", "field", "dir", "direction", "by"}
+
+
+def _sorting_name(param: str | None) -> bool:
+    return bool(param) and re.sub(r"[^a-z_]", "", param.lower()) in SORTING_NAMES
 
 
 class SqliProbe(Probe):
@@ -81,6 +88,8 @@ class SqliProbe(Probe):
         found = await self._quote_differential(rm, point)
         if found is None and _numeric_seed(point):
             found = await self._numeric_differential(rm, point)
+        if found is None and (hinted or _sorting_name(point.param)):
+            found = await self._identifier_differential(rm, point)
         if found:
             return [found]
 
@@ -168,6 +177,28 @@ class SqliProbe(Probe):
             point, f"{seed}' vs {seed}-0", "error-differential", Confidence.FIRM, lone.status_code,
             f"status {lone.status_code} for {seed}', {arithmetic.status_code} for {seed}-0 and for {seed}",
             lone.text, None,
+        )
+
+    async def _identifier_differential(self, rm: RequestManager, point: InjectionPoint) -> Finding | None:
+        """A sort column or table name sits in the query without quotes, so a quote proves nothing: `'` and `''`
+        both break it. A second ORDER BY term still works when it is a real column position (`id,1`) and breaks
+        when it names none (`id,99999`). A value that is checked against a list, or cast, answers both alike."""
+        seed = str(point.seed_value or "")
+        column = seed if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.]{0,40}", seed) else "1"
+        control = await self._send(rm, point, column)
+        valid = await self._send(rm, point, f"{column},1")
+        invalid = await self._send(rm, point, f"{column},99999")
+        if control is None or valid is None or invalid is None:
+            return None
+        if control.status_code >= 500 or valid.status_code != control.status_code or invalid.status_code < 500:
+            return None
+        again = await self._send(rm, point, f"{column},99999")
+        if again is None or again.status_code != invalid.status_code:
+            return None
+        return self._finding(
+            point, f"{column},1 vs {column},99999", "error-differential-identifier", Confidence.FIRM, invalid.status_code,
+            f"status {invalid.status_code} for {column},99999 against {valid.status_code} for {column},1 and for {column}",
+            invalid.text, None,
         )
 
     @staticmethod

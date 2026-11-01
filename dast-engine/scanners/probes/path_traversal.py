@@ -3,9 +3,18 @@
 Tries a few traversal depths and encodings against known OS files
 (/etc/passwd, win.ini) and matches on their actual, distinctive content --
 never on status code alone, since a 403/404 on a bad path proves nothing.
-Also tries a known file the app itself serves (its own entry page) via a
-traversal round-trip, to catch filtered traversal where /etc/passwd
-itself is blocked but the directory-walk still works.
+When nothing readable has a status-code tell either, it falls back to a
+blind differential: a real traversal depth to /etc/passwd behaves
+differently from the same depth to a name that can't exist.
+
+A sink that force-appends a fixed suffix to the input (`$name . ".php"`)
+defeats both of those: the OS targets above never carry that extension,
+so no signature or status-code fact distinguishes a real escape from a
+blocked one. Confirmed in testing against our own benchmark apps, this
+case is a genuine blind spot for black-box testing in a modern runtime
+(no null-byte truncation since PHP 5.3.4, no path-length truncation
+since the same release) -- it is SAST's taint trace, not a runtime
+probe, that proves this shape of bug.
 """
 from __future__ import annotations
 
@@ -32,7 +41,11 @@ class PathTraversalProbe(Probe):
         targets = self._payloads.get("unix_targets", []) + self._payloads.get("windows_targets", [])
         all_seqs = self._payloads.get("traversal_sequences", [])
         plain_seqs = [s for s in all_seqs if s in ("../", "..\\")]
-        exotic_seqs = [s for s in all_seqs if s not in plain_seqs]
+        # A doubled sequence like "....//" survives a filter that strips "../" once: removing the
+        # middle "../" leaves "../" behind. Common enough on a single-pass blacklist that it goes
+        # right after the plain sequences, ahead of the percent-encoded ones below.
+        filter_bypass_seqs = [s for s in all_seqs if s.startswith("....")]
+        exotic_seqs = [s for s in all_seqs if s not in plain_seqs and s not in filter_bypass_seqs]
 
         # A hinted traversal sequence (such as one that survives a filter) goes first, ahead
         # of the generic ones, with every target file.
@@ -50,6 +63,11 @@ class PathTraversalProbe(Probe):
             for target in targets:
                 yield prefix + target["path"], target["signature"]
         for seq in plain_seqs:
+            for depth in depths:
+                prefix = seq * depth
+                for target in targets:
+                    yield prefix + target["path"], target["signature"]
+        for seq in filter_bypass_seqs:
             for depth in depths:
                 prefix = seq * depth
                 for target in targets:
