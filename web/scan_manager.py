@@ -5,8 +5,11 @@ import asyncio
 import json
 import os
 import re
+import ssl
 import sys
 import time
+import urllib.error
+import urllib.request
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -92,6 +95,18 @@ TARGETS = {
         "description": "Bundled Django 5 target. Start with docker compose -f sast-engine/benchmarks/djshop/docker-compose.yml up -d --build.",
     },
 }
+
+
+def _unreachable(url: str, timeout: float = 10.0) -> str | None:
+    """Why nothing answers at this URL, or None when something does. Any HTTP status counts as an answer (a 404 is
+    one); the certificate is not checked, because this only asks whether the application is there."""
+    try:
+        urllib.request.urlopen(urllib.request.Request(url), timeout=timeout, context=ssl._create_unverified_context()).close()
+    except urllib.error.HTTPError:
+        return None
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        return f"Nothing answered at {url} ({getattr(exc, 'reason', exc)}). Is the application running, and is the URL right?"
+    return None
 
 
 class ScanManager:
@@ -544,6 +559,12 @@ class ScanManager:
             output = folder / "issues.json"
             base_path = request.get("base_path", "")
             url = job["target_url"]
+            if job["options"]["run_dast"]:
+                # Without this, an app that isn't up gets minutes of requests that all fail, then an ordinary-looking
+                # report with no runtime findings.
+                problem = await asyncio.to_thread(_unreachable, url)
+                if problem:
+                    raise RuntimeError(problem)
 
             if job["options"]["run_sast"]:
                 job["stage"] = "Source analysis"

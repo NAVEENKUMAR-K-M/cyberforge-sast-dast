@@ -16,6 +16,7 @@ from web.scan_manager import ScanManager
 @pytest.fixture(autouse=True)
 def isolated_scan_history(tmp_path, monkeypatch):
     monkeypatch.setattr(scan_manager, "OUT", tmp_path / "scan-history")
+    monkeypatch.setattr(scan_manager, "_unreachable", lambda url, timeout=10.0: None)   # nothing is listening in these tests
 
 
 def value(args, flag):
