@@ -50,7 +50,7 @@ function formatElapsed(seconds: number) {
   return `${seconds.toFixed(1)}s`;
 }
 
-export function ScanLauncher({ onReportReady }: { onReportReady: () => void }) {
+export function ScanLauncher({ onReportReady, onActiveChange }: { onReportReady: () => void; onActiveChange?: (active: boolean) => void }) {
   const [targets, setTargets] = useState<Target[]>([]);
   const [history, setHistory] = useState<ScanJob[]>([]);
   const [targetId, setTargetId] = useState("dvwa");
@@ -69,6 +69,7 @@ export function ScanLauncher({ onReportReady }: { onReportReady: () => void }) {
   const [excludesText, setExcludesText] = useState("");
   const [useRouteMap, setUseRouteMap] = useState(false);
   const [useSastHints, setUseSastHints] = useState(true);
+  const [useSca, setUseSca] = useState(true);
   const [loginUrl, setLoginUrl] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -85,6 +86,9 @@ export function ScanLauncher({ onReportReady }: { onReportReady: () => void }) {
 
   const selectedTarget = useMemo(() => targets.find((target) => target.id === targetId), [targets, targetId]);
   const active = Boolean(job && ACTIVE.has(job.status));
+  useEffect(() => {
+    onActiveChange?.(active);
+  }, [active, onActiveChange]);
 
   async function refreshHistory() {
     const response = await fetch("/api/scans", { cache: "no-store" });
@@ -167,6 +171,7 @@ export function ScanLauncher({ onReportReady }: { onReportReady: () => void }) {
           exclude: excludesText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean),
           use_route_map: useRouteMap,
           use_sast_hints: useSastHints,
+          use_sca: useSca,
           auth: {
             login_url: loginUrl,
             username,
@@ -248,9 +253,8 @@ export function ScanLauncher({ onReportReady }: { onReportReady: () => void }) {
     <section className="scan-console" aria-labelledby="scan-console-title">
       <div className="scan-console-heading">
         <div>
-          <div className="eyebrow">LOCAL TEST APPLICATIONS</div>
-          <h2 id="scan-console-title">Run a scan</h2>
-          <p>Start the application locally first, configure the analysis, then run SAST and/or DAST.</p>
+          <h2 id="scan-console-title">New scan</h2>
+          <p>Start the application first, then scan its source code, the running application, or both.</p>
         </div>
         <span className="local-badge">This machine only</span>
       </div>
@@ -307,6 +311,7 @@ export function ScanLauncher({ onReportReady }: { onReportReady: () => void }) {
             <label className="scan-check"><input type="checkbox" checked={ciGate} onChange={(event) => setCiGate(event.target.checked)} /><span><strong>CI gate</strong><small>Mark the gate failed for confirmed high or critical issues.</small></span></label>
             <label className="scan-check"><input type="checkbox" checked={semgrep} disabled={!runSast} onChange={(event) => setSemgrep(event.target.checked)} /><span><strong>Pattern rules</strong><small>Run Semgrep alongside taint analysis.</small></span></label>
             <label className="scan-check"><input type="checkbox" checked={useSastHints} disabled={!runSast || !runDast} onChange={(event) => setUseSastHints(event.target.checked)} /><span><strong>Prioritize SAST hints</strong><small>Probe discovered inputs linked to source findings first.</small></span></label>
+            <label className="scan-check"><input type="checkbox" checked={useSca} disabled={!runSast} onChange={(event) => setUseSca(event.target.checked)} /><span><strong>Dependency analysis</strong><small>For PHP apps with a composer.lock. Sends package names and versions, never source code, to public advisory services.</small></span></label>
             <label className="scan-check"><input type="checkbox" checked={useRouteMap} disabled={!runSast || !runDast} onChange={(event) => setUseRouteMap(event.target.checked)} /><span><strong>Expand with SAST route map</strong><small>{selectedTarget?.id === "benchmark_shop" ? "Enabled by default for this target to cover the discovered handlers." : "Discovers more routes, but can use the DAST time budget before active probes finish."}</small></span></label>
             <label>Source web root<input value={webRoot} disabled={!runSast} onChange={(event) => setWebRoot(event.target.value)} placeholder="Detected automatically" /></label>
             <label>Exclude folders <span className="muted">one folder name per line</span><textarea disabled={!runSast} value={excludesText} onChange={(event) => setExcludesText(event.target.value)} rows={2} placeholder="vendor\nthird_party" /></label>

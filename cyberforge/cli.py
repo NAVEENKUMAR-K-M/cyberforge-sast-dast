@@ -33,6 +33,9 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--base-path", default="", help="URL prefix the application is served under, such as /shop")
     scan.add_argument("--no-semgrep", action="store_true", help="skip the SAST pattern rules")
     scan.add_argument("--no-ai", action="store_true", help="skip the AI-assisted follow-up even when an API key is configured")
+    scan.add_argument("--no-sca", action="store_true",
+                      help="skip the dependency analysis (PHP applications with a composer.lock). It sends package names and versions, "
+                           "never source code, to public advisory services")
     scan.add_argument("--sarif", action="store_true", help="also write the SAST findings as SARIF")
     scan.add_argument("--fail-on", choices=["confirmed-high"], help="exit with status 1 if the scan finds a Confirmed high or critical issue (CI gate)")
     scan.add_argument("--login-url", help="login page or JSON login endpoint (same host as --target)")
@@ -59,6 +62,7 @@ def build_request(args: argparse.Namespace) -> dict:
         "sarif": args.sarif,
         "ci_gate": args.fail_on is not None,
         "use_ai": not args.no_ai,
+        "use_sca": not args.no_sca,
         "use_route_map": True,     # reaches pages a crawler can't find; this is what lifts runtime detection
         "use_sast_hints": True,
         "auth": {

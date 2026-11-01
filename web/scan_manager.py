@@ -24,6 +24,8 @@ OUT = ROOT / "out" / "scans"
 SAST_PYTHON = python_for("sast")
 DAST_PYTHON = python_for("dast")
 PYTHON = sys.executable
+# The dependency analysis looks advisories up on the network; a slow or unreachable service must not hold a scan up.
+SCA_SECONDS = 150
 
 TARGETS = {
     "dvwa": {
@@ -324,7 +326,8 @@ class ScanManager:
                         "ci_gate": bool(request.get("ci_gate")), "semgrep": request.get("semgrep") is not False,
                         "web_root": web_root, "exclude": excludes[:20],
                         "use_route_map": request.get("use_route_map") is True,
-                        "use_sast_hints": request.get("use_sast_hints") is not False},
+                        "use_sast_hints": request.get("use_sast_hints") is not False,
+                        "use_sca": request.get("use_sca") is not False},
             "logs": [],
             "error": None,
             "report_path": str(folder / "issues.json"),
@@ -506,6 +509,26 @@ class ScanManager:
         if code != 0:
             raise RuntimeError(f"{label} exited with code {code}.")
 
+    async def _dependency_analysis(self, scan_id: str, source: Path, routes: Path, folder: Path) -> Path | None:
+        """Reachability-aware dependency analysis of a Composer application. It adds to a scan and never fails one:
+        if it errors, times out or can't reach the advisory services, the scan carries on without a dependencies
+        section and the log says why."""
+        out = folder / "sca"
+        args = ["-m", "sca.cli", "scan", str(source), "--routes", str(routes), "--out", str(out)]
+        try:
+            await asyncio.wait_for(self._command(scan_id, "Dependency analysis", SAST_PYTHON, args, ROOT), timeout=SCA_SECONDS)
+        except asyncio.TimeoutError:
+            process = self.processes.pop(scan_id, None)
+            if process and process.returncode is None:
+                process.terminate()
+            await self._log(scan_id, f"Dependency analysis stopped after {SCA_SECONDS} seconds; the scan continues without it.")
+            return None
+        except RuntimeError as exc:
+            await self._log(scan_id, f"Dependency analysis skipped: {exc}")
+            return None
+        report = out / "sca.json"
+        return report if report.is_file() else None
+
     async def _run(self, scan_id: str, request: dict, target: dict, folder: Path):
         job = self.jobs[scan_id]
         job["status"] = "running"
@@ -544,6 +567,13 @@ class ScanManager:
                 sast_common.write_text(json.dumps({"schema_version": "1.0", "source": "sast", "tool": "cyberforge-sast",
                     "target": str(target["source"] or ""), "stats": {"files": 0, "entry_points": 0, "routes": 0, "seconds": 0}, "findings": []}, indent=2), encoding="utf-8")
 
+            sca_report = None
+            source = Path(target["source"]) if target["source"] else None
+            if job["options"]["run_sast"] and job["options"]["use_sca"] and source and (source / "composer.lock").is_file():
+                job["stage"] = "Source analysis (dependencies)"   # keeps the first stage lit in the progress rail
+                sca_report = await self._dependency_analysis(scan_id, source, sast_routes, folder)
+            job["options"]["dependency_analysis"] = sca_report is not None
+
             if job["options"]["run_dast"]:
                 job["stage"] = "Runtime analysis"
                 args = [str(ROOT / "dast-engine" / "main.py"), "scan", "--target", url,
@@ -578,6 +608,8 @@ class ScanManager:
             args = ["-m", "correlator.cli", "--sast", str(sast_common), "--dast", str(dast_common), "--out", str(output)]
             if base_path:
                 args += ["--base-path", base_path]
+            if sca_report:
+                args += ["--sca", str(sca_report)]
             # Auto-verify (B-1) is part of the correlation engine, not a manual extra step: whenever both
             # scans actually ran, every scan gets the deterministic round-1 re-test for free. A configured
             # AI key additionally unlocks the bounded, bigger-picture round 2 -- no key, no network call,

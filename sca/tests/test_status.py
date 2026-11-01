@@ -193,3 +193,9 @@ def test_a_kev_listed_unknown_ranks_above_an_unlisted_reachable():
     ranked = order([row("Reachable", "not listed", 0.9, "a"), row("Unknown", "listed", 0.1, "b"),
                     row("Present-only", "listed", 0.9, "c"), row("Imported-only", "not listed", 0.9, "d")])
     assert [r["package"] for r in ranked] == ["b", "a", "d", "c"] and ranked[0]["rank"] == 1
+
+
+def test_the_assumptions_shown_to_people_are_plain_text():
+    """They appear on the issue page and in the dashboard, which don't render markdown."""
+    from sca.callgraph import ASSUMPTIONS
+    assert ASSUMPTIONS and all("`" not in text for text in ASSUMPTIONS.values())

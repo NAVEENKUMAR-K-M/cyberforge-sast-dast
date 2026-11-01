@@ -1,0 +1,4226 @@
+{
+ "schema_version": "1.0",
+ "inputs": {
+  "sast": {
+   "path": "/Users/ntbnaren7/Dev/cyberforge-sast-dast/out/scans/68287b2b9aa1/sast/findings.common.json",
+   "target": "/Users/ntbnaren7/Dev/cyberforge-sast-dast/sast-engine/benchmarks/shop"
+  },
+  "dast": {
+   "path": "/Users/ntbnaren7/Dev/cyberforge-sast-dast/out/scans/68287b2b9aa1/issues.dast.common.json",
+   "target": "http://127.0.0.1:8088"
+  }
+ },
+ "base_path": "",
+ "issues": [
+  {
+   "issue_id": "issue:15e9f9813aaca30a",
+   "label": "Confirmed",
+   "cwe": "CWE-78",
+   "cwe_family": "CWE-78",
+   "title": "Command injection",
+   "severity": "critical",
+   "confidence": "high",
+   "reportable": true,
+   "stored": false,
+   "ambiguous": false,
+   "candidates": [],
+   "routes": [
+    {
+     "path": "/api/convert.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "GET"
+     ]
+    }
+   ],
+   "params": [
+    {
+     "name": "format",
+     "location": "query"
+    }
+   ],
+   "sast_ids": [
+    "sast:b5692af6ddbc713d"
+   ],
+   "dast_ids": [
+    "dast:6453674536ec7cbefd6b336be551ac4415c2d124"
+   ],
+   "runtime_verification": {
+    "level": "validated",
+    "checks": [
+     {
+      "dast_id": "dast:6453674536ec7cbefd6b336be551ac4415c2d124",
+      "level": "validated",
+      "reason": "the target computed 6306, which is not in the payload, and returned it"
+     }
+    ]
+   },
+   "evidence": {
+    "code": [
+     {
+      "id": "sast:b5692af6ddbc713d",
+      "source": "sast",
+      "tool": "cyberforge-sast",
+      "cwe": "CWE-78",
+      "cwe_family": "CWE-78",
+      "title": "Command injection",
+      "severity": "critical",
+      "confidence": "high",
+      "status": "open",
+      "scope": "endpoint",
+      "params": [
+       {
+        "name": "format",
+        "location": "query"
+       }
+      ],
+      "routes": [
+       {
+        "path": "/api/convert.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "GET"
+        ]
+       }
+      ],
+      "code": {
+       "file": "app/public/api/convert.php",
+       "line": 3,
+       "snippet": "passthru(\"file --mime-type input.\" . $format);",
+       "function": "<top-level>",
+       "sink": "passthru",
+       "trace": [
+        {
+         "file": "app/public/api/convert.php",
+         "line": 2,
+         "note": "read from query parameter 'format'"
+        },
+        {
+         "file": "app/public/api/convert.php",
+         "line": 2,
+         "note": "assigned to $format"
+        },
+        {
+         "file": "app/public/api/convert.php",
+         "line": 3,
+         "note": "reaches sink passthru"
+        }
+       ],
+       "conditions": [],
+       "stored_flow": null,
+       "suppression_reason": null,
+       "engines": [
+        "taint"
+       ]
+      },
+      "runtime": null
+     }
+    ],
+    "runtime": [
+     {
+      "id": "dast:6453674536ec7cbefd6b336be551ac4415c2d124",
+      "source": "dast",
+      "tool": "cyberforge-dast",
+      "cwe": "CWE-78",
+      "cwe_family": "CWE-78",
+      "title": "OS Command Injection",
+      "severity": "critical",
+      "confidence": "high",
+      "status": "open",
+      "scope": "endpoint",
+      "params": [
+       {
+        "name": "format",
+        "location": "query"
+       }
+      ],
+      "routes": [
+       {
+        "path": "/api/convert.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "GET"
+        ]
+       }
+      ],
+      "code": null,
+      "runtime": {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/api/convert.php",
+       "payload": ";expr 5586 + 720",
+       "technique": "computed-marker",
+       "verification": "confirmed",
+       "evidence": {
+        "request": "",
+        "response_excerpt": "input.: cannot open `input.' (No such file or directory)\n6306\n",
+        "matched": "6306",
+        "baseline_status": null,
+        "probe_status": 200
+       }
+      }
+     }
+    ]
+   },
+   "cvss": {
+    "version": "3.0",
+    "vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H/E:F/RC:C",
+    "base_score": 9.8,
+    "temporal_score": 9.6,
+    "rating": "critical"
+   },
+   "risk_score": 9.6,
+   "risk_factors": [
+    "CWE-78 baseline: AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+    "E:F, the target computed 6306, which is not in the payload, and returned it",
+    "RC:C, found in both the code and the running app"
+   ],
+   "rank": 1
+  },
+  {
+   "issue_id": "issue:2e207bba5e3f400f",
+   "label": "Confirmed",
+   "cwe": "CWE-78",
+   "cwe_family": "CWE-78",
+   "title": "Command injection",
+   "severity": "critical",
+   "confidence": "high",
+   "reportable": true,
+   "stored": false,
+   "ambiguous": false,
+   "candidates": [],
+   "routes": [
+    {
+     "path": "/admin/backup.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "POST"
+     ]
+    }
+   ],
+   "params": [
+    {
+     "name": "label",
+     "location": "body"
+    }
+   ],
+   "sast_ids": [
+    "sast:2ab90485e484e0a1"
+   ],
+   "dast_ids": [
+    "dast:dc6449cd383e0f276f37d3920be316166fe66d9e"
+   ],
+   "runtime_verification": {
+    "level": "validated",
+    "checks": [
+     {
+      "dast_id": "dast:dc6449cd383e0f276f37d3920be316166fe66d9e",
+      "level": "validated",
+      "reason": "two requests were delayed 4.2s and 4.1s against a 0.01s baseline"
+     }
+    ]
+   },
+   "evidence": {
+    "code": [
+     {
+      "id": "sast:2ab90485e484e0a1",
+      "source": "sast",
+      "tool": "cyberforge-sast",
+      "cwe": "CWE-78",
+      "cwe_family": "CWE-78",
+      "title": "Command injection",
+      "severity": "critical",
+      "confidence": "high",
+      "status": "open",
+      "scope": "endpoint",
+      "params": [
+       {
+        "name": "label",
+        "location": "body"
+       }
+      ],
+      "routes": [
+       {
+        "path": "/admin/backup.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "POST"
+        ]
+       }
+      ],
+      "code": {
+       "file": "app/public/admin/backup.php",
+       "line": 3,
+       "snippet": "$output = `tar czf /tmp/$label.tgz /var/www/shop/files`;",
+       "function": "<top-level>",
+       "sink": "backticks",
+       "trace": [
+        {
+         "file": "app/public/admin/backup.php",
+         "line": 2,
+         "note": "read from body parameter 'label'"
+        },
+        {
+         "file": "app/public/admin/backup.php",
+         "line": 2,
+         "note": "str_replace() filter, not a real protection"
+        },
+        {
+         "file": "app/public/admin/backup.php",
+         "line": 2,
+         "note": "assigned to $label"
+        },
+        {
+         "file": "app/public/admin/backup.php",
+         "line": 3,
+         "note": "reaches sink backticks"
+        }
+       ],
+       "conditions": [],
+       "stored_flow": null,
+       "suppression_reason": null,
+       "engines": [
+        "taint"
+       ]
+      },
+      "runtime": null
+     }
+    ],
+    "runtime": [
+     {
+      "id": "dast:dc6449cd383e0f276f37d3920be316166fe66d9e",
+      "source": "dast",
+      "tool": "cyberforge-dast",
+      "cwe": "CWE-78",
+      "cwe_family": "CWE-78",
+      "title": "OS Command Injection",
+      "severity": "critical",
+      "confidence": "medium",
+      "status": "open",
+      "scope": "endpoint",
+      "params": [
+       {
+        "name": "label",
+        "location": "body"
+       }
+      ],
+      "routes": [
+       {
+        "path": "/admin/backup.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "POST"
+        ]
+       }
+      ],
+      "code": null,
+      "runtime": {
+       "method": "POST",
+       "url": "http://127.0.0.1:8088/admin/backup.php",
+       "payload": "$(sleep 4)",
+       "technique": "time-based",
+       "verification": "firm",
+       "evidence": {
+        "request": "",
+        "response_excerpt": "",
+        "matched": "delayed 4.2s / 4.1s vs baseline 0.01s",
+        "baseline_status": null,
+        "probe_status": 200
+       }
+      }
+     }
+    ]
+   },
+   "cvss": {
+    "version": "3.0",
+    "vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H/E:F/RC:C",
+    "base_score": 9.8,
+    "temporal_score": 9.6,
+    "rating": "critical"
+   },
+   "risk_score": 9.6,
+   "risk_factors": [
+    "CWE-78 baseline: AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+    "E:F, two requests were delayed 4.2s and 4.1s against a 0.01s baseline",
+    "RC:C, found in both the code and the running app"
+   ],
+   "rank": 2
+  },
+  {
+   "issue_id": "issue:2f68348d922a0336",
+   "label": "Confirmed",
+   "cwe": "CWE-78",
+   "cwe_family": "CWE-78",
+   "title": "Command injection",
+   "severity": "critical",
+   "confidence": "high",
+   "reportable": true,
+   "stored": false,
+   "ambiguous": false,
+   "candidates": [],
+   "routes": [
+    {
+     "path": "/tools/lookup.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "GET",
+      "POST"
+     ]
+    }
+   ],
+   "params": [
+    {
+     "name": "domain",
+     "location": "any"
+    },
+    {
+     "name": "domain",
+     "location": "body"
+    },
+    {
+     "name": "domain",
+     "location": "query"
+    }
+   ],
+   "sast_ids": [
+    "sast:9ed588df1ffbd254"
+   ],
+   "dast_ids": [
+    "dast:58b5dc5bc2afd0a263a982d8e20ea8321d3b7c4c",
+    "dast:d257844cbf3210a125797275041e0634777fdc30"
+   ],
+   "runtime_verification": {
+    "level": "validated",
+    "checks": [
+     {
+      "dast_id": "dast:58b5dc5bc2afd0a263a982d8e20ea8321d3b7c4c",
+      "level": "validated",
+      "reason": "the target computed 8108, which is not in the payload, and returned it"
+     },
+     {
+      "dast_id": "dast:d257844cbf3210a125797275041e0634777fdc30",
+      "level": "validated",
+      "reason": "the target computed 1874, which is not in the payload, and returned it"
+     }
+    ]
+   },
+   "evidence": {
+    "code": [
+     {
+      "id": "sast:9ed588df1ffbd254",
+      "source": "sast",
+      "tool": "cyberforge-sast",
+      "cwe": "CWE-78",
+      "cwe_family": "CWE-78",
+      "title": "Command injection",
+      "severity": "critical",
+      "confidence": "high",
+      "status": "open",
+      "scope": "endpoint",
+      "params": [
+       {
+        "name": "domain",
+        "location": "any"
+       }
+      ],
+      "routes": [
+       {
+        "path": "/tools/lookup.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "GET",
+         "POST"
+        ]
+       }
+      ],
+      "code": {
+       "file": "app/public/tools/lookup.php",
+       "line": 4,
+       "snippet": "echo '<pre>' . htmlspecialchars((string) run_tool(\"nslookup \" . $domain)) . '</pre>';",
+       "function": "<top-level>",
+       "sink": "shell_exec",
+       "trace": [
+        {
+         "file": "app/lib/http.php",
+         "line": 3,
+         "note": "read from any parameter 'domain'"
+        },
+        {
+         "file": "app/public/tools/lookup.php",
+         "line": 3,
+         "note": "returned from input()"
+        },
+        {
+         "file": "app/public/tools/lookup.php",
+         "line": 3,
+         "note": "assigned to $domain"
+        },
+        {
+         "file": "app/public/tools/lookup.php",
+         "line": 4,
+         "note": "passed to run_tool($command)"
+        },
+        {
+         "file": "app/lib/http.php",
+         "line": 12,
+         "note": "reaches sink shell_exec"
+        }
+       ],
+       "conditions": [],
+       "stored_flow": null,
+       "suppression_reason": null,
+       "engines": [
+        "taint"
+       ]
+      },
+      "runtime": null
+     }
+    ],
+    "runtime": [
+     {
+      "id": "dast:58b5dc5bc2afd0a263a982d8e20ea8321d3b7c4c",
+      "source": "dast",
+      "tool": "cyberforge-dast",
+      "cwe": "CWE-78",
+      "cwe_family": "CWE-78",
+      "title": "OS Command Injection",
+      "severity": "critical",
+      "confidence": "high",
+      "status": "open",
+      "scope": "endpoint",
+      "params": [
+       {
+        "name": "domain",
+        "location": "body"
+       }
+      ],
+      "routes": [
+       {
+        "path": "/tools/lookup.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "POST"
+        ]
+       }
+      ],
+      "code": null,
+      "runtime": {
+       "method": "POST",
+       "url": "http://127.0.0.1:8088/tools/lookup.php",
+       "payload": ";expr 7315 + 793",
+       "technique": "computed-marker",
+       "verification": "confirmed",
+       "evidence": {
+        "request": "",
+        "response_excerpt": "<pre>8108\n</pre>",
+        "matched": "8108",
+        "baseline_status": null,
+        "probe_status": 200
+       }
+      }
+     },
+     {
+      "id": "dast:d257844cbf3210a125797275041e0634777fdc30",
+      "source": "dast",
+      "tool": "cyberforge-dast",
+      "cwe": "CWE-78",
+      "cwe_family": "CWE-78",
+      "title": "OS Command Injection",
+      "severity": "critical",
+      "confidence": "high",
+      "status": "open",
+      "scope": "endpoint",
+      "params": [
+       {
+        "name": "domain",
+        "location": "query"
+       }
+      ],
+      "routes": [
+       {
+        "path": "/tools/lookup.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "GET"
+        ]
+       }
+      ],
+      "code": null,
+      "runtime": {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/tools/lookup.php",
+       "payload": ";expr 1749 + 125",
+       "technique": "computed-marker",
+       "verification": "confirmed",
+       "evidence": {
+        "request": "",
+        "response_excerpt": "<pre>1874\n</pre>",
+        "matched": "1874",
+        "baseline_status": null,
+        "probe_status": 200
+       }
+      }
+     }
+    ]
+   },
+   "cvss": {
+    "version": "3.0",
+    "vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H/E:F/RC:C",
+    "base_score": 9.8,
+    "temporal_score": 9.6,
+    "rating": "critical"
+   },
+   "risk_score": 9.6,
+   "risk_factors": [
+    "CWE-78 baseline: AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+    "E:F, the target computed 1874, which is not in the payload, and returned it",
+    "RC:C, found in both the code and the running app"
+   ],
+   "rank": 3
+  },
+  {
+   "issue_id": "issue:332677e81ff40365",
+   "label": "Confirmed",
+   "cwe": "CWE-78",
+   "cwe_family": "CWE-78",
+   "title": "Command injection",
+   "severity": "critical",
+   "confidence": "high",
+   "reportable": true,
+   "stored": false,
+   "ambiguous": false,
+   "candidates": [],
+   "routes": [
+    {
+     "path": "/tools/ping.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "POST"
+     ]
+    }
+   ],
+   "params": [
+    {
+     "name": "host",
+     "location": "body"
+    }
+   ],
+   "sast_ids": [
+    "sast:5fe6e7e7800b02ac"
+   ],
+   "dast_ids": [
+    "dast:eeafd20134da3883c6113c12fee497ad5a943c6a"
+   ],
+   "runtime_verification": {
+    "level": "validated",
+    "checks": [
+     {
+      "dast_id": "dast:eeafd20134da3883c6113c12fee497ad5a943c6a",
+      "level": "validated",
+      "reason": "the target computed 4418, which is not in the payload, and returned it"
+     }
+    ]
+   },
+   "evidence": {
+    "code": [
+     {
+      "id": "sast:5fe6e7e7800b02ac",
+      "source": "sast",
+      "tool": "cyberforge-sast",
+      "cwe": "CWE-78",
+      "cwe_family": "CWE-78",
+      "title": "Command injection",
+      "severity": "critical",
+      "confidence": "high",
+      "status": "open",
+      "scope": "endpoint",
+      "params": [
+       {
+        "name": "host",
+        "location": "body"
+       }
+      ],
+      "routes": [
+       {
+        "path": "/tools/ping.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "POST"
+        ]
+       }
+      ],
+      "code": {
+       "file": "app/public/tools/ping.php",
+       "line": 4,
+       "snippet": "echo '<pre>' . htmlspecialchars(shell_exec(\"ping -c 1 \" . $host)) . '</pre>';",
+       "function": "<top-level>",
+       "sink": "shell_exec",
+       "trace": [
+        {
+         "file": "app/public/tools/ping.php",
+         "line": 3,
+         "note": "read from body parameter 'host'"
+        },
+        {
+         "file": "app/public/tools/ping.php",
+         "line": 3,
+         "note": "assigned to $host"
+        },
+        {
+         "file": "app/public/tools/ping.php",
+         "line": 4,
+         "note": "reaches sink shell_exec"
+        }
+       ],
+       "conditions": [],
+       "stored_flow": null,
+       "suppression_reason": null,
+       "engines": [
+        "taint"
+       ]
+      },
+      "runtime": null
+     }
+    ],
+    "runtime": [
+     {
+      "id": "dast:eeafd20134da3883c6113c12fee497ad5a943c6a",
+      "source": "dast",
+      "tool": "cyberforge-dast",
+      "cwe": "CWE-78",
+      "cwe_family": "CWE-78",
+      "title": "OS Command Injection",
+      "severity": "critical",
+      "confidence": "high",
+      "status": "open",
+      "scope": "endpoint",
+      "params": [
+       {
+        "name": "host",
+        "location": "body"
+       }
+      ],
+      "routes": [
+       {
+        "path": "/tools/ping.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "POST"
+        ]
+       }
+      ],
+      "code": null,
+      "runtime": {
+       "method": "POST",
+       "url": "http://127.0.0.1:8088/tools/ping.php",
+       "payload": ";expr 3675 + 743",
+       "technique": "computed-marker",
+       "verification": "confirmed",
+       "evidence": {
+        "request": "",
+        "response_excerpt": "<pre>4418\n</pre>",
+        "matched": "4418",
+        "baseline_status": null,
+        "probe_status": 200
+       }
+      }
+     }
+    ]
+   },
+   "cvss": {
+    "version": "3.0",
+    "vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H/E:F/RC:C",
+    "base_score": 9.8,
+    "temporal_score": 9.6,
+    "rating": "critical"
+   },
+   "risk_score": 9.6,
+   "risk_factors": [
+    "CWE-78 baseline: AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+    "E:F, the target computed 4418, which is not in the payload, and returned it",
+    "RC:C, found in both the code and the running app"
+   ],
+   "rank": 4
+  },
+  {
+   "issue_id": "issue:1307fab4f936b05b",
+   "label": "Confirmed",
+   "cwe": "CWE-89",
+   "cwe_family": "CWE-89",
+   "title": "SQL injection",
+   "severity": "critical",
+   "confidence": "high",
+   "reportable": true,
+   "stored": false,
+   "ambiguous": false,
+   "candidates": [],
+   "routes": [
+    {
+     "path": "/shop.php",
+     "aliases": [],
+     "selector": "action=track",
+     "methods": [
+      "GET"
+     ]
+    }
+   ],
+   "params": [
+    {
+     "name": "code",
+     "location": "query"
+    }
+   ],
+   "sast_ids": [
+    "sast:8664aed7faebd659"
+   ],
+   "dast_ids": [
+    "dast:1559723a51be0d6b8e145083ac3a69113d62f077"
+   ],
+   "runtime_verification": {
+    "level": "partial",
+    "checks": [
+     {
+      "dast_id": "dast:1559723a51be0d6b8e145083ac3a69113d62f077",
+      "level": "partial",
+      "reason": "an error from the database shows the input reached the query, not that it can be exploited"
+     }
+    ]
+   },
+   "evidence": {
+    "code": [
+     {
+      "id": "sast:8664aed7faebd659",
+      "source": "sast",
+      "tool": "cyberforge-sast",
+      "cwe": "CWE-89",
+      "cwe_family": "CWE-89",
+      "title": "SQL injection",
+      "severity": "critical",
+      "confidence": "high",
+      "status": "open",
+      "scope": "endpoint",
+      "params": [
+       {
+        "name": "code",
+        "location": "query"
+       }
+      ],
+      "routes": [
+       {
+        "path": "/shop.php",
+        "aliases": [],
+        "selector": "action=track",
+        "methods": [
+         "GET"
+        ]
+       }
+      ],
+      "code": {
+       "file": "app/public/shop.php",
+       "line": 13,
+       "snippet": "foreach (run_query(\"SELECT customer, total FROM orders WHERE code = '$code'\") as $row) {",
+       "function": "<top-level>",
+       "sink": "query",
+       "trace": [
+        {
+         "file": "app/public/shop.php",
+         "line": 12,
+         "note": "read from query parameter 'code'"
+        },
+        {
+         "file": "app/public/shop.php",
+         "line": 12,
+         "note": "assigned to $code"
+        },
+        {
+         "file": "app/public/shop.php",
+         "line": 13,
+         "note": "passed to run_query($sql)"
+        },
+        {
+         "file": "app/lib/db.php",
+         "line": 21,
+         "note": "reaches sink query"
+        }
+       ],
+       "conditions": [],
+       "stored_flow": null,
+       "suppression_reason": null,
+       "engines": [
+        "taint"
+       ]
+      },
+      "runtime": null
+     }
+    ],
+    "runtime": [
+     {
+      "id": "dast:1559723a51be0d6b8e145083ac3a69113d62f077",
+      "source": "dast",
+      "tool": "cyberforge-dast",
+      "cwe": "CWE-89",
+      "cwe_family": "CWE-89",
+      "title": "SQL Injection",
+      "severity": "high",
+      "confidence": "high",
+      "status": "open",
+      "scope": "endpoint",
+      "params": [
+       {
+        "name": "code",
+        "location": "query"
+       }
+      ],
+      "routes": [
+       {
+        "path": "/shop.php",
+        "aliases": [],
+        "selector": "action=track",
+        "methods": [
+         "GET"
+        ]
+       }
+      ],
+      "code": null,
+      "runtime": {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/shop.php?action=track",
+       "payload": "'",
+       "technique": "error-based",
+       "verification": "confirmed",
+       "evidence": {
+        "request": "",
+        "response_excerpt": "<br />\n<b>Fatal error</b>:  Uncaught PDOException: SQLSTATE[HY000]: General error: 1 unrecognized token: &quot;'''&quot; in /var/www/shop/lib/db.php:21\nStack trace:\n#0 /var/www/shop/lib/db.php(21): PDO-&gt;query('SELECT customer...')\n#1 /var/www/shop/public/shop.php(13): run_query('SELECT customer..",
+        "matched": "unrecognized token",
+        "baseline_status": 200,
+        "probe_status": 200
+       }
+      }
+     }
+    ]
+   },
+   "cvss": {
+    "version": "3.0",
+    "vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H/E:P/RC:C",
+    "base_score": 9.8,
+    "temporal_score": 9.3,
+    "rating": "critical"
+   },
+   "risk_score": 9.3,
+   "risk_factors": [
+    "CWE-89 baseline: AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+    "E:P, an error from the database shows the input reached the query, not that it can be exploited",
+    "RC:C, found in both the code and the running app"
+   ],
+   "rank": 5
+  },
+  {
+   "issue_id": "issue:8ad1ec8efad3fb7b",
+   "label": "Confirmed",
+   "cwe": "CWE-89",
+   "cwe_family": "CWE-89",
+   "title": "SQL injection",
+   "severity": "critical",
+   "confidence": "high",
+   "reportable": true,
+   "stored": false,
+   "ambiguous": false,
+   "candidates": [],
+   "routes": [
+    {
+     "path": "/shop.php",
+     "aliases": [],
+     "selector": "action=view",
+     "methods": [
+      "GET"
+     ]
+    }
+   ],
+   "params": [
+    {
+     "name": "pid",
+     "location": "query"
+    }
+   ],
+   "sast_ids": [
+    "sast:7384ab146bb2f1ea"
+   ],
+   "dast_ids": [
+    "dast:d774320aa05e42790b3aaae98adfbe86a3f24a2e"
+   ],
+   "runtime_verification": {
+    "level": "partial",
+    "checks": [
+     {
+      "dast_id": "dast:d774320aa05e42790b3aaae98adfbe86a3f24a2e",
+      "level": "partial",
+      "reason": "an error from the database shows the input reached the query, not that it can be exploited"
+     }
+    ]
+   },
+   "evidence": {
+    "code": [
+     {
+      "id": "sast:7384ab146bb2f1ea",
+      "source": "sast",
+      "tool": "cyberforge-sast",
+      "cwe": "CWE-89",
+      "cwe_family": "CWE-89",
+      "title": "SQL injection",
+      "severity": "critical",
+      "confidence": "high",
+      "status": "open",
+      "scope": "endpoint",
+      "params": [
+       {
+        "name": "pid",
+        "location": "query"
+       }
+      ],
+      "routes": [
+       {
+        "path": "/shop.php",
+        "aliases": [],
+        "selector": "action=view",
+        "methods": [
+         "GET"
+        ]
+       }
+      ],
+      "code": {
+       "file": "app/public/shop.php",
+       "line": 7,
+       "snippet": "foreach (run_query(\"SELECT name, price FROM products WHERE id = $pid\") as $row) {",
+       "function": "<top-level>",
+       "sink": "query",
+       "trace": [
+        {
+         "file": "app/public/shop.php",
+         "line": 6,
+         "note": "read from query parameter 'pid'"
+        },
+        {
+         "file": "app/public/shop.php",
+         "line": 6,
+         "note": "assigned to $pid"
+        },
+        {
+         "file": "app/public/shop.php",
+         "line": 7,
+         "note": "passed to run_query($sql)"
+        },
+        {
+         "file": "app/lib/db.php",
+         "line": 21,
+         "note": "reaches sink query"
+        }
+       ],
+       "conditions": [],
+       "stored_flow": null,
+       "suppression_reason": null,
+       "engines": [
+        "taint"
+       ]
+      },
+      "runtime": null
+     }
+    ],
+    "runtime": [
+     {
+      "id": "dast:d774320aa05e42790b3aaae98adfbe86a3f24a2e",
+      "source": "dast",
+      "tool": "cyberforge-dast",
+      "cwe": "CWE-89",
+      "cwe_family": "CWE-89",
+      "title": "SQL Injection",
+      "severity": "high",
+      "confidence": "high",
+      "status": "open",
+      "scope": "endpoint",
+      "params": [
+       {
+        "name": "pid",
+        "location": "query"
+       }
+      ],
+      "routes": [
+       {
+        "path": "/shop.php",
+        "aliases": [],
+        "selector": "action=view",
+        "methods": [
+         "GET"
+        ]
+       }
+      ],
+      "code": null,
+      "runtime": {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/shop.php?action=view",
+       "payload": "'",
+       "technique": "error-based",
+       "verification": "confirmed",
+       "evidence": {
+        "request": "",
+        "response_excerpt": "<br />\n<b>Fatal error</b>:  Uncaught PDOException: SQLSTATE[HY000]: General error: 1 unrecognized token: &quot;'&quot; in /var/www/shop/lib/db.php:21\nStack trace:\n#0 /var/www/shop/lib/db.php(21): PDO-&gt;query('SELECT name, pr...')\n#1 /var/www/shop/public/shop.php(7): run_query('SELECT name, pr...')",
+        "matched": "unrecognized token",
+        "baseline_status": 200,
+        "probe_status": 200
+       }
+      }
+     }
+    ]
+   },
+   "cvss": {
+    "version": "3.0",
+    "vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H/E:P/RC:C",
+    "base_score": 9.8,
+    "temporal_score": 9.3,
+    "rating": "critical"
+   },
+   "risk_score": 9.3,
+   "risk_factors": [
+    "CWE-89 baseline: AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+    "E:P, an error from the database shows the input reached the query, not that it can be exploited",
+    "RC:C, found in both the code and the running app"
+   ],
+   "rank": 6
+  },
+  {
+   "issue_id": "issue:b399060a3505bce4",
+   "label": "Confirmed",
+   "cwe": "CWE-89",
+   "cwe_family": "CWE-89",
+   "title": "SQL injection",
+   "severity": "critical",
+   "confidence": "high",
+   "reportable": true,
+   "stored": false,
+   "ambiguous": false,
+   "candidates": [],
+   "routes": [
+    {
+     "path": "/account/orders.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "GET",
+      "POST"
+     ]
+    }
+   ],
+   "params": [
+    {
+     "name": "sort",
+     "location": "any"
+    },
+    {
+     "name": "sort",
+     "location": "body"
+    },
+    {
+     "name": "sort",
+     "location": "query"
+    }
+   ],
+   "sast_ids": [
+    "sast:248d76cb22e2a232"
+   ],
+   "dast_ids": [
+    "dast:225ce6477de9cb75705bfcc3ab4f11d258c7dd7e",
+    "dast:32f3f44827f5e09742b24b4fec3299852907e204"
+   ],
+   "runtime_verification": {
+    "level": "partial",
+    "checks": [
+     {
+      "dast_id": "dast:225ce6477de9cb75705bfcc3ab4f11d258c7dd7e",
+      "level": "partial",
+      "reason": "an error from the database shows the input reached the query, not that it can be exploited"
+     },
+     {
+      "dast_id": "dast:32f3f44827f5e09742b24b4fec3299852907e204",
+      "level": "partial",
+      "reason": "an error from the database shows the input reached the query, not that it can be exploited"
+     }
+    ]
+   },
+   "evidence": {
+    "code": [
+     {
+      "id": "sast:248d76cb22e2a232",
+      "source": "sast",
+      "tool": "cyberforge-sast",
+      "cwe": "CWE-89",
+      "cwe_family": "CWE-89",
+      "title": "SQL injection",
+      "severity": "critical",
+      "confidence": "high",
+      "status": "open",
+      "scope": "endpoint",
+      "params": [
+       {
+        "name": "sort",
+        "location": "any"
+       }
+      ],
+      "routes": [
+       {
+        "path": "/account/orders.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "GET",
+         "POST"
+        ]
+       }
+      ],
+      "code": {
+       "file": "app/public/account/orders.php",
+       "line": 4,
+       "snippet": "$rows = run_query(\"SELECT id, total FROM orders ORDER BY \" . $sort);",
+       "function": "<top-level>",
+       "sink": "query",
+       "trace": [
+        {
+         "file": "app/lib/http.php",
+         "line": 3,
+         "note": "read from any parameter 'sort'"
+        },
+        {
+         "file": "app/public/account/orders.php",
+         "line": 3,
+         "note": "returned from input()"
+        },
+        {
+         "file": "app/public/account/orders.php",
+         "line": 3,
+         "note": "addslashes()"
+        },
+        {
+         "file": "app/public/account/orders.php",
+         "line": 3,
+         "note": "assigned to $sort"
+        },
+        {
+         "file": "app/public/account/orders.php",
+         "line": 4,
+         "note": "passed to run_query($sql)"
+        },
+        {
+         "file": "app/lib/db.php",
+         "line": 21,
+         "note": "reaches sink query"
+        }
+       ],
+       "conditions": [],
+       "stored_flow": null,
+       "suppression_reason": null,
+       "engines": [
+        "taint"
+       ]
+      },
+      "runtime": null
+     }
+    ],
+    "runtime": [
+     {
+      "id": "dast:225ce6477de9cb75705bfcc3ab4f11d258c7dd7e",
+      "source": "dast",
+      "tool": "cyberforge-dast",
+      "cwe": "CWE-89",
+      "cwe_family": "CWE-89",
+      "title": "SQL Injection",
+      "severity": "high",
+      "confidence": "high",
+      "status": "open",
+      "scope": "endpoint",
+      "params": [
+       {
+        "name": "sort",
+        "location": "query"
+       }
+      ],
+      "routes": [
+       {
+        "path": "/account/orders.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "GET"
+        ]
+       }
+      ],
+      "code": null,
+      "runtime": {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/account/orders.php",
+       "payload": "'",
+       "technique": "error-based",
+       "verification": "confirmed",
+       "evidence": {
+        "request": "",
+        "response_excerpt": "<br />\n<b>Fatal error</b>:  Uncaught PDOException: SQLSTATE[HY000]: General error: 1 unrecognized token: &quot;\\&quot; in /var/www/shop/lib/db.php:21\nStack trace:\n#0 /var/www/shop/lib/db.php(21): PDO-&gt;query('SELECT id, tota...')\n#1 /var/www/shop/public/account/orders.php(4): run_query('SELECT id,",
+        "matched": "unrecognized token",
+        "baseline_status": 200,
+        "probe_status": 200
+       }
+      }
+     },
+     {
+      "id": "dast:32f3f44827f5e09742b24b4fec3299852907e204",
+      "source": "dast",
+      "tool": "cyberforge-dast",
+      "cwe": "CWE-89",
+      "cwe_family": "CWE-89",
+      "title": "SQL Injection",
+      "severity": "high",
+      "confidence": "high",
+      "status": "open",
+      "scope": "endpoint",
+      "params": [
+       {
+        "name": "sort",
+        "location": "body"
+       }
+      ],
+      "routes": [
+       {
+        "path": "/account/orders.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "POST"
+        ]
+       }
+      ],
+      "code": null,
+      "runtime": {
+       "method": "POST",
+       "url": "http://127.0.0.1:8088/account/orders.php",
+       "payload": "'",
+       "technique": "error-based",
+       "verification": "confirmed",
+       "evidence": {
+        "request": "",
+        "response_excerpt": "<br />\n<b>Fatal error</b>:  Uncaught PDOException: SQLSTATE[HY000]: General error: 1 unrecognized token: &quot;\\&quot; in /var/www/shop/lib/db.php:21\nStack trace:\n#0 /var/www/shop/lib/db.php(21): PDO-&gt;query('SELECT id, tota...')\n#1 /var/www/shop/public/account/orders.php(4): run_query('SELECT id,",
+        "matched": "unrecognized token",
+        "baseline_status": 200,
+        "probe_status": 200
+       }
+      }
+     }
+    ]
+   },
+   "cvss": {
+    "version": "3.0",
+    "vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H/E:P/RC:C",
+    "base_score": 9.8,
+    "temporal_score": 9.3,
+    "rating": "critical"
+   },
+   "risk_score": 9.3,
+   "risk_factors": [
+    "CWE-89 baseline: AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+    "E:P, an error from the database shows the input reached the query, not that it can be exploited",
+    "RC:C, found in both the code and the running app"
+   ],
+   "rank": 7
+  },
+  {
+   "issue_id": "issue:d689b8aaf3cb0a11",
+   "label": "Confirmed",
+   "cwe": "CWE-89",
+   "cwe_family": "CWE-89",
+   "title": "SQL injection",
+   "severity": "critical",
+   "confidence": "high",
+   "reportable": true,
+   "stored": false,
+   "ambiguous": false,
+   "candidates": [],
+   "routes": [
+    {
+     "path": "/login.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "POST"
+     ]
+    }
+   ],
+   "params": [
+    {
+     "name": "username",
+     "location": "body"
+    }
+   ],
+   "sast_ids": [
+    "sast:4e760d3cdfabb84d"
+   ],
+   "dast_ids": [
+    "dast:7a2d3692886ddbea326ae0658f4c24387ce46076"
+   ],
+   "runtime_verification": {
+    "level": "partial",
+    "checks": [
+     {
+      "dast_id": "dast:7a2d3692886ddbea326ae0658f4c24387ce46076",
+      "level": "partial",
+      "reason": "an error from the database shows the input reached the query, not that it can be exploited"
+     }
+    ]
+   },
+   "evidence": {
+    "code": [
+     {
+      "id": "sast:4e760d3cdfabb84d",
+      "source": "sast",
+      "tool": "cyberforge-sast",
+      "cwe": "CWE-89",
+      "cwe_family": "CWE-89",
+      "title": "SQL injection",
+      "severity": "critical",
+      "confidence": "high",
+      "status": "open",
+      "scope": "endpoint",
+      "params": [
+       {
+        "name": "username",
+        "location": "body"
+       }
+      ],
+      "routes": [
+       {
+        "path": "/login.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "POST"
+        ]
+       }
+      ],
+      "code": {
+       "file": "app/public/login.php",
+       "line": 5,
+       "snippet": "$sql = sprintf(\"SELECT id FROM users WHERE username = '%s' AND password = '%s'\", $_POST['username'], $password);",
+       "function": "<top-level>",
+       "sink": "query",
+       "trace": [
+        {
+         "file": "app/public/login.php",
+         "line": 5,
+         "note": "read from body parameter 'username'"
+        },
+        {
+         "file": "app/public/login.php",
+         "line": 5,
+         "note": "assigned to $sql"
+        },
+        {
+         "file": "app/public/login.php",
+         "line": 6,
+         "note": "passed to run_query($sql)"
+        },
+        {
+         "file": "app/lib/db.php",
+         "line": 21,
+         "note": "reaches sink query"
+        }
+       ],
+       "conditions": [],
+       "stored_flow": null,
+       "suppression_reason": null,
+       "engines": [
+        "taint"
+       ]
+      },
+      "runtime": null
+     }
+    ],
+    "runtime": [
+     {
+      "id": "dast:7a2d3692886ddbea326ae0658f4c24387ce46076",
+      "source": "dast",
+      "tool": "cyberforge-dast",
+      "cwe": "CWE-89",
+      "cwe_family": "CWE-89",
+      "title": "SQL Injection",
+      "severity": "high",
+      "confidence": "high",
+      "status": "open",
+      "scope": "endpoint",
+      "params": [
+       {
+        "name": "username",
+        "location": "body"
+       }
+      ],
+      "routes": [
+       {
+        "path": "/login.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "POST"
+        ]
+       }
+      ],
+      "code": null,
+      "runtime": {
+       "method": "POST",
+       "url": "http://127.0.0.1:8088/login.php",
+       "payload": "'",
+       "technique": "error-based",
+       "verification": "confirmed",
+       "evidence": {
+        "request": "",
+        "response_excerpt": "<br />\n<b>Fatal error</b>:  Uncaught PDOException: SQLSTATE[HY000]: General error: 1 near &quot;d41d8cd98f00b204e9800998ecf8427e&quot;: syntax error in /var/www/shop/lib/db.php:21\nStack trace:\n#0 /var/www/shop/lib/db.php(21): PDO-&gt;query('SELECT id FROM ...')\n#1 /var/www/shop/public/login.php(6): ",
+        "matched": "near &quot;d41d8cd98f00b204e9800998ecf8427e&quot;: syntax error",
+        "baseline_status": 200,
+        "probe_status": 200
+       }
+      }
+     }
+    ]
+   },
+   "cvss": {
+    "version": "3.0",
+    "vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H/E:P/RC:C",
+    "base_score": 9.8,
+    "temporal_score": 9.3,
+    "rating": "critical"
+   },
+   "risk_score": 9.3,
+   "risk_factors": [
+    "CWE-89 baseline: AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+    "E:P, an error from the database shows the input reached the query, not that it can be exploited",
+    "RC:C, found in both the code and the running app"
+   ],
+   "rank": 8
+  },
+  {
+   "issue_id": "issue:0193d67da119529f",
+   "label": "Code only",
+   "cwe": "CWE-798",
+   "cwe_family": "CWE-798",
+   "title": "Hard-coded secret",
+   "severity": "high",
+   "confidence": "high",
+   "reportable": true,
+   "stored": false,
+   "ambiguous": false,
+   "candidates": [],
+   "routes": [
+    {
+     "path": "/account/orders.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "GET",
+      "POST"
+     ]
+    },
+    {
+     "path": "/api/orders.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "GET"
+     ]
+    },
+    {
+     "path": "/attachment.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "GET"
+     ]
+    },
+    {
+     "path": "/cart/checkout.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "POST"
+     ]
+    },
+    {
+     "path": "/cart/index.php",
+     "aliases": [
+      "/cart/"
+     ],
+     "selector": null,
+     "methods": [
+      "GET"
+     ]
+    },
+    {
+     "path": "/category.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "GET"
+     ]
+    },
+    {
+     "path": "/contact.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "POST"
+     ]
+    },
+    {
+     "path": "/export.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "GET"
+     ]
+    },
+    {
+     "path": "/gallery.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "GET"
+     ]
+    },
+    {
+     "path": "/index.php",
+     "aliases": [
+      "/"
+     ],
+     "selector": null,
+     "methods": [
+      "GET"
+     ]
+    },
+    {
+     "path": "/login.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "POST"
+     ]
+    },
+    {
+     "path": "/product.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "GET"
+     ]
+    },
+    {
+     "path": "/products.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "GET"
+     ]
+    },
+    {
+     "path": "/profile.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "GET"
+     ]
+    },
+    {
+     "path": "/register.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "POST"
+     ]
+    },
+    {
+     "path": "/reset.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "GET"
+     ]
+    },
+    {
+     "path": "/reviews.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "POST"
+     ]
+    },
+    {
+     "path": "/search.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "GET",
+      "POST"
+     ]
+    },
+    {
+     "path": "/shop.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "GET"
+     ]
+    },
+    {
+     "path": "/tools/lookup.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "GET",
+      "POST"
+     ]
+    }
+   ],
+   "params": [],
+   "sast_ids": [
+    "sast:932d7432ac1ec26f"
+   ],
+   "dast_ids": [],
+   "runtime_verification": {
+    "level": "none",
+    "checks": []
+   },
+   "evidence": {
+    "code": [
+     {
+      "id": "sast:932d7432ac1ec26f",
+      "source": "sast",
+      "tool": "cyberforge-sast",
+      "cwe": "CWE-798",
+      "cwe_family": "CWE-798",
+      "title": "Hard-coded secret",
+      "severity": "high",
+      "confidence": "high",
+      "status": "open",
+      "scope": "endpoint",
+      "params": [],
+      "routes": [
+       {
+        "path": "/account/orders.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "GET",
+         "POST"
+        ]
+       },
+       {
+        "path": "/api/orders.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "GET"
+        ]
+       },
+       {
+        "path": "/attachment.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "GET"
+        ]
+       },
+       {
+        "path": "/cart/checkout.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "POST"
+        ]
+       },
+       {
+        "path": "/cart/index.php",
+        "aliases": [
+         "/cart/"
+        ],
+        "selector": null,
+        "methods": [
+         "GET"
+        ]
+       },
+       {
+        "path": "/category.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "GET"
+        ]
+       },
+       {
+        "path": "/contact.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "POST"
+        ]
+       },
+       {
+        "path": "/export.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "GET"
+        ]
+       },
+       {
+        "path": "/gallery.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "GET"
+        ]
+       },
+       {
+        "path": "/index.php",
+        "aliases": [
+         "/"
+        ],
+        "selector": null,
+        "methods": [
+         "GET"
+        ]
+       },
+       {
+        "path": "/login.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "POST"
+        ]
+       },
+       {
+        "path": "/product.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "GET"
+        ]
+       },
+       {
+        "path": "/products.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "GET"
+        ]
+       },
+       {
+        "path": "/profile.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "GET"
+        ]
+       },
+       {
+        "path": "/register.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "POST"
+        ]
+       },
+       {
+        "path": "/reset.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "GET"
+        ]
+       },
+       {
+        "path": "/reviews.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "POST"
+        ]
+       },
+       {
+        "path": "/search.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "GET",
+         "POST"
+        ]
+       },
+       {
+        "path": "/shop.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "GET"
+        ]
+       },
+       {
+        "path": "/tools/lookup.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "GET",
+         "POST"
+        ]
+       }
+      ],
+      "code": {
+       "file": "app/lib/config.php",
+       "line": 5,
+       "snippet": "$awsAccessKey = 'AKIAIOSFODNN7EXAMPLE';",
+       "function": "<top-level>",
+       "sink": "Hard-coded secret assigned to a variable",
+       "trace": [
+        {
+         "file": "app/lib/config.php",
+         "line": 5,
+         "note": "Hard-coded secret assigned to a variable"
+        }
+       ],
+       "conditions": [],
+       "stored_flow": null,
+       "suppression_reason": null,
+       "engines": [
+        "semgrep"
+       ]
+      },
+      "runtime": null
+     }
+    ],
+    "runtime": []
+   },
+   "cvss": {
+    "version": "3.0",
+    "vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H/E:U/RC:R",
+    "base_score": 9.8,
+    "temporal_score": 8.6,
+    "rating": "high"
+   },
+   "risk_score": 8.6,
+   "risk_factors": [
+    "CWE-798 baseline: AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+    "E:U, found by code analysis only, not exploited",
+    "RC:R, reasonable evidence from one scanner"
+   ],
+   "rank": 20
+  },
+  {
+   "issue_id": "issue:3215895506e11ce8",
+   "label": "Code only",
+   "cwe": "CWE-798",
+   "cwe_family": "CWE-798",
+   "title": "Hard-coded secret",
+   "severity": "high",
+   "confidence": "high",
+   "reportable": true,
+   "stored": false,
+   "ambiguous": false,
+   "candidates": [],
+   "routes": [
+    {
+     "path": "/account/orders.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "GET",
+      "POST"
+     ]
+    },
+    {
+     "path": "/api/orders.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "GET"
+     ]
+    },
+    {
+     "path": "/attachment.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "GET"
+     ]
+    },
+    {
+     "path": "/cart/checkout.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "POST"
+     ]
+    },
+    {
+     "path": "/cart/index.php",
+     "aliases": [
+      "/cart/"
+     ],
+     "selector": null,
+     "methods": [
+      "GET"
+     ]
+    },
+    {
+     "path": "/category.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "GET"
+     ]
+    },
+    {
+     "path": "/contact.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "POST"
+     ]
+    },
+    {
+     "path": "/export.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "GET"
+     ]
+    },
+    {
+     "path": "/gallery.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "GET"
+     ]
+    },
+    {
+     "path": "/index.php",
+     "aliases": [
+      "/"
+     ],
+     "selector": null,
+     "methods": [
+      "GET"
+     ]
+    },
+    {
+     "path": "/login.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "POST"
+     ]
+    },
+    {
+     "path": "/product.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "GET"
+     ]
+    },
+    {
+     "path": "/products.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "GET"
+     ]
+    },
+    {
+     "path": "/profile.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "GET"
+     ]
+    },
+    {
+     "path": "/register.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "POST"
+     ]
+    },
+    {
+     "path": "/reset.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "GET"
+     ]
+    },
+    {
+     "path": "/reviews.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "POST"
+     ]
+    },
+    {
+     "path": "/search.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "GET",
+      "POST"
+     ]
+    },
+    {
+     "path": "/shop.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "GET"
+     ]
+    },
+    {
+     "path": "/tools/lookup.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "GET",
+      "POST"
+     ]
+    }
+   ],
+   "params": [],
+   "sast_ids": [
+    "sast:5c86e198eac9b5bf"
+   ],
+   "dast_ids": [],
+   "runtime_verification": {
+    "level": "none",
+    "checks": []
+   },
+   "evidence": {
+    "code": [
+     {
+      "id": "sast:5c86e198eac9b5bf",
+      "source": "sast",
+      "tool": "cyberforge-sast",
+      "cwe": "CWE-798",
+      "cwe_family": "CWE-798",
+      "title": "Hard-coded secret",
+      "severity": "high",
+      "confidence": "high",
+      "status": "open",
+      "scope": "endpoint",
+      "params": [],
+      "routes": [
+       {
+        "path": "/account/orders.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "GET",
+         "POST"
+        ]
+       },
+       {
+        "path": "/api/orders.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "GET"
+        ]
+       },
+       {
+        "path": "/attachment.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "GET"
+        ]
+       },
+       {
+        "path": "/cart/checkout.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "POST"
+        ]
+       },
+       {
+        "path": "/cart/index.php",
+        "aliases": [
+         "/cart/"
+        ],
+        "selector": null,
+        "methods": [
+         "GET"
+        ]
+       },
+       {
+        "path": "/category.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "GET"
+        ]
+       },
+       {
+        "path": "/contact.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "POST"
+        ]
+       },
+       {
+        "path": "/export.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "GET"
+        ]
+       },
+       {
+        "path": "/gallery.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "GET"
+        ]
+       },
+       {
+        "path": "/index.php",
+        "aliases": [
+         "/"
+        ],
+        "selector": null,
+        "methods": [
+         "GET"
+        ]
+       },
+       {
+        "path": "/login.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "POST"
+        ]
+       },
+       {
+        "path": "/product.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "GET"
+        ]
+       },
+       {
+        "path": "/products.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "GET"
+        ]
+       },
+       {
+        "path": "/profile.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "GET"
+        ]
+       },
+       {
+        "path": "/register.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "POST"
+        ]
+       },
+       {
+        "path": "/reset.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "GET"
+        ]
+       },
+       {
+        "path": "/reviews.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "POST"
+        ]
+       },
+       {
+        "path": "/search.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "GET",
+         "POST"
+        ]
+       },
+       {
+        "path": "/shop.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "GET"
+        ]
+       },
+       {
+        "path": "/tools/lookup.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "GET",
+         "POST"
+        ]
+       }
+      ],
+      "code": {
+       "file": "app/lib/config.php",
+       "line": 3,
+       "snippet": "define('DB_PASSWORD', 'Sup3rS3cretDb!');",
+       "function": "<top-level>",
+       "sink": "Hard-coded secret in a constant",
+       "trace": [
+        {
+         "file": "app/lib/config.php",
+         "line": 3,
+         "note": "Hard-coded secret in a constant"
+        }
+       ],
+       "conditions": [],
+       "stored_flow": null,
+       "suppression_reason": null,
+       "engines": [
+        "semgrep"
+       ]
+      },
+      "runtime": null
+     }
+    ],
+    "runtime": []
+   },
+   "cvss": {
+    "version": "3.0",
+    "vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H/E:U/RC:R",
+    "base_score": 9.8,
+    "temporal_score": 8.6,
+    "rating": "high"
+   },
+   "risk_score": 8.6,
+   "risk_factors": [
+    "CWE-798 baseline: AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+    "E:U, found by code analysis only, not exploited",
+    "RC:R, reasonable evidence from one scanner"
+   ],
+   "rank": 21
+  },
+  {
+   "issue_id": "issue:cbfe3f7afa57638e",
+   "label": "Code only",
+   "cwe": "CWE-22",
+   "cwe_family": "CWE-22",
+   "title": "Path traversal",
+   "severity": "high",
+   "confidence": "high",
+   "reportable": true,
+   "stored": false,
+   "ambiguous": false,
+   "candidates": [],
+   "routes": [
+    {
+     "path": "/page.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "GET"
+     ]
+    }
+   ],
+   "params": [
+    {
+     "name": "name",
+     "location": "query"
+    }
+   ],
+   "sast_ids": [
+    "sast:5a30817665ff8b28"
+   ],
+   "dast_ids": [],
+   "runtime_verification": {
+    "level": "none",
+    "checks": []
+   },
+   "evidence": {
+    "code": [
+     {
+      "id": "sast:5a30817665ff8b28",
+      "source": "sast",
+      "tool": "cyberforge-sast",
+      "cwe": "CWE-22",
+      "cwe_family": "CWE-22",
+      "title": "Path traversal",
+      "severity": "high",
+      "confidence": "high",
+      "status": "open",
+      "scope": "endpoint",
+      "params": [
+       {
+        "name": "name",
+        "location": "query"
+       }
+      ],
+      "routes": [
+       {
+        "path": "/page.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "GET"
+        ]
+       }
+      ],
+      "code": {
+       "file": "app/public/page.php",
+       "line": 3,
+       "snippet": "include __DIR__ . '/../pages/' . $name . '.php';",
+       "function": "<top-level>",
+       "sink": "include",
+       "trace": [
+        {
+         "file": "app/public/page.php",
+         "line": 2,
+         "note": "read from query parameter 'name'"
+        },
+        {
+         "file": "app/public/page.php",
+         "line": 2,
+         "note": "assigned to $name"
+        },
+        {
+         "file": "app/public/page.php",
+         "line": 3,
+         "note": "reaches sink include"
+        }
+       ],
+       "conditions": [],
+       "stored_flow": null,
+       "suppression_reason": null,
+       "engines": [
+        "taint"
+       ]
+      },
+      "runtime": null
+     }
+    ],
+    "runtime": []
+   },
+   "cvss": {
+    "version": "3.0",
+    "vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N/E:U/RC:R",
+    "base_score": 7.5,
+    "temporal_score": 6.6,
+    "rating": "medium"
+   },
+   "risk_score": 6.6,
+   "risk_factors": [
+    "CWE-22 baseline: AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+    "E:U, found by code analysis only, not exploited",
+    "RC:R, reasonable evidence from one scanner"
+   ],
+   "rank": 26,
+   "investigation": {
+    "case_id": "case:11413943f4ec1158",
+    "outcome": "unresolved",
+    "stop_reason": "no planner is configured",
+    "rounds": 1,
+    "ai_assisted": false
+   }
+  },
+  {
+   "issue_id": "issue:756dc23048d5d9e7",
+   "label": "Runtime only",
+   "cwe": "CWE-79",
+   "cwe_family": "CWE-79",
+   "title": "User-controlled input persists and is echoed back (stored-content candidate)",
+   "severity": "medium",
+   "confidence": "medium",
+   "reportable": true,
+   "stored": false,
+   "ambiguous": false,
+   "candidates": [],
+   "routes": [
+    {
+     "path": "/reviews.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "POST"
+     ]
+    }
+   ],
+   "params": [
+    {
+     "name": "author",
+     "location": "body"
+    }
+   ],
+   "sast_ids": [],
+   "dast_ids": [
+    "dast:5f72e78e4631773a3c370f5784de0b886c6e3c9d"
+   ],
+   "runtime_verification": {
+    "level": "partial",
+    "checks": [
+     {
+      "dast_id": "dast:5f72e78e4631773a3c370f5784de0b886c6e3c9d",
+      "level": "partial",
+      "reason": "the payload is not reflected unchanged in the recorded response excerpt"
+     }
+    ]
+   },
+   "evidence": {
+    "code": [],
+    "runtime": [
+     {
+      "id": "dast:5f72e78e4631773a3c370f5784de0b886c6e3c9d",
+      "source": "dast",
+      "tool": "cyberforge-dast",
+      "cwe": "CWE-79",
+      "cwe_family": "CWE-79",
+      "title": "User-controlled input persists and is echoed back (stored-content candidate)",
+      "severity": "medium",
+      "confidence": "medium",
+      "status": "open",
+      "scope": "endpoint",
+      "params": [
+       {
+        "name": "author",
+        "location": "body"
+       }
+      ],
+      "routes": [
+       {
+        "path": "/reviews.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "POST"
+        ]
+       }
+      ],
+      "code": null,
+      "runtime": {
+       "method": "POST",
+       "url": "http://127.0.0.1:8088/reviews.php",
+       "payload": "dastmark918c19817fb4",
+       "technique": "stored-marker",
+       "verification": "firm",
+       "evidence": {
+        "request": "",
+        "response_excerpt": "<h1><br />\n<b>Warning</b>:  Trying to access array offset on value of type bool in <b>/var/www/shop/templates/product.php</b> on line <b>1</b><br />\n<br />\n<b>Deprecated</b>:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in <b>/var/www/shop/templates/produc",
+        "matched": "dastmark918c19817fb4",
+        "baseline_status": null,
+        "probe_status": null,
+        "echoed_at": "http://127.0.0.1:8088/product.php"
+       }
+      }
+     }
+    ]
+   },
+   "cvss": {
+    "version": "3.0",
+    "vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N/E:P/RC:R",
+    "base_score": 6.1,
+    "temporal_score": 5.6,
+    "rating": "medium"
+   },
+   "risk_score": 5.6,
+   "risk_factors": [
+    "CWE-79 baseline: AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N",
+    "E:P, the payload is not reflected unchanged in the recorded response excerpt",
+    "RC:R, reasonable evidence from one scanner"
+   ],
+   "rank": 27
+  },
+  {
+   "issue_id": "issue:1acfb8c70e007acc",
+   "label": "Code only",
+   "cwe": "CWE-601",
+   "cwe_family": "CWE-601",
+   "title": "Open redirect",
+   "severity": "medium",
+   "confidence": "high",
+   "reportable": true,
+   "stored": false,
+   "ambiguous": false,
+   "candidates": [],
+   "routes": [
+    {
+     "path": "/lang.php",
+     "aliases": [],
+     "selector": null,
+     "methods": [
+      "GET"
+     ]
+    }
+   ],
+   "params": [
+    {
+     "name": "back",
+     "location": "query"
+    }
+   ],
+   "sast_ids": [
+    "sast:8e95ee795cda0b0d"
+   ],
+   "dast_ids": [],
+   "runtime_verification": {
+    "level": "none",
+    "checks": []
+   },
+   "evidence": {
+    "code": [
+     {
+      "id": "sast:8e95ee795cda0b0d",
+      "source": "sast",
+      "tool": "cyberforge-sast",
+      "cwe": "CWE-601",
+      "cwe_family": "CWE-601",
+      "title": "Open redirect",
+      "severity": "medium",
+      "confidence": "high",
+      "status": "open",
+      "scope": "endpoint",
+      "params": [
+       {
+        "name": "back",
+        "location": "query"
+       }
+      ],
+      "routes": [
+       {
+        "path": "/lang.php",
+        "aliases": [],
+        "selector": null,
+        "methods": [
+         "GET"
+        ]
+       }
+      ],
+      "code": {
+       "file": "app/public/lang.php",
+       "line": 4,
+       "snippet": "header('Location: ' . $back);",
+       "function": "<top-level>",
+       "sink": "header('Location')",
+       "trace": [
+        {
+         "file": "app/public/lang.php",
+         "line": 2,
+         "note": "read from query parameter 'back'"
+        },
+        {
+         "file": "app/public/lang.php",
+         "line": 2,
+         "note": "assigned to $back"
+        },
+        {
+         "file": "app/public/lang.php",
+         "line": 4,
+         "note": "reaches sink header('Location')"
+        }
+       ],
+       "conditions": [],
+       "stored_flow": null,
+       "suppression_reason": null,
+       "engines": [
+        "taint"
+       ]
+      },
+      "runtime": null
+     }
+    ],
+    "runtime": []
+   },
+   "cvss": {
+    "version": "3.0",
+    "vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N/E:U/RC:R",
+    "base_score": 6.1,
+    "temporal_score": 5.4,
+    "rating": "medium"
+   },
+   "risk_score": 5.4,
+   "risk_factors": [
+    "CWE-601 baseline: AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N",
+    "E:U, found by code analysis only, not exploited",
+    "RC:R, reasonable evidence from one scanner"
+   ],
+   "rank": 28,
+   "investigation": {
+    "case_id": "case:f5db28d3e2fb3d37",
+    "outcome": "unresolved",
+    "stop_reason": "no planner is configured",
+    "rounds": 1,
+    "ai_assisted": false
+   }
+  },
+  {
+   "issue_id": "issue:7101552051f5a271",
+   "label": "Runtime only",
+   "cwe": "CWE-200",
+   "cwe_family": "CWE-489",
+   "title": "Server/technology version disclosure",
+   "severity": "low",
+   "confidence": "medium",
+   "reportable": true,
+   "stored": false,
+   "ambiguous": false,
+   "candidates": [],
+   "routes": [],
+   "params": [],
+   "sast_ids": [],
+   "dast_ids": [
+    "dast:32572aeed10adb3fab0ed373529d7df90255e5ab"
+   ],
+   "runtime_verification": {
+    "level": "unchecked",
+    "checks": [
+     {
+      "dast_id": "dast:32572aeed10adb3fab0ed373529d7df90255e5ab",
+      "level": "unchecked",
+      "reason": "no evidence check exists for CWE-489"
+     }
+    ]
+   },
+   "evidence": {
+    "code": [],
+    "runtime": [
+     {
+      "id": "dast:32572aeed10adb3fab0ed373529d7df90255e5ab",
+      "source": "dast",
+      "tool": "cyberforge-dast",
+      "cwe": "CWE-200",
+      "cwe_family": "CWE-489",
+      "title": "Server/technology version disclosure",
+      "severity": "low",
+      "confidence": "medium",
+      "status": "open",
+      "scope": "app",
+      "params": [],
+      "routes": [],
+      "code": null,
+      "runtime": {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088",
+       "payload": "",
+       "technique": "",
+       "verification": "firm",
+       "evidence": {
+        "request": "",
+        "response_excerpt": "",
+        "matched": "Server: Apache/2.4.69 (Debian); X-Powered-By: PHP/8.2.35",
+        "baseline_status": null,
+        "probe_status": null,
+        "affected_urls": [
+         "http://127.0.0.1:8088"
+        ],
+        "affected_count": 1
+       }
+      }
+     }
+    ]
+   },
+   "cvss": {
+    "version": "3.0",
+    "vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N/E:P/RC:R",
+    "base_score": 5.3,
+    "temporal_score": 4.8,
+    "rating": "medium"
+   },
+   "risk_score": 4.8,
+   "risk_factors": [
+    "CWE-489 baseline: AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+    "E:P, no evidence check exists for CWE-489",
+    "RC:R, reasonable evidence from one scanner"
+   ],
+   "rank": 33
+  }
+ ],
+ "links": [
+  {
+   "link_id": "link:19847ae3cad03eb7",
+   "issue_id": "issue:2f68348d922a0336",
+   "sast_ids": [
+    "sast:9ed588df1ffbd254"
+   ],
+   "dast_ids": [
+    "dast:58b5dc5bc2afd0a263a982d8e20ea8321d3b7c4c"
+   ],
+   "strength": "strong",
+   "match_basis": {
+    "cwe_family": "CWE-78",
+    "runtime_route": "/tools/lookup.php",
+    "kind": "exact",
+    "code_route": "/tools/lookup.php",
+    "selector": null,
+    "parameter": "domain",
+    "location": "body"
+   }
+  },
+  {
+   "link_id": "link:555bc4544a2333ee",
+   "issue_id": "issue:1307fab4f936b05b",
+   "sast_ids": [
+    "sast:8664aed7faebd659"
+   ],
+   "dast_ids": [
+    "dast:1559723a51be0d6b8e145083ac3a69113d62f077"
+   ],
+   "strength": "strong",
+   "match_basis": {
+    "cwe_family": "CWE-89",
+    "runtime_route": "/shop.php",
+    "kind": "exact",
+    "code_route": "/shop.php",
+    "selector": "action=track",
+    "parameter": "code",
+    "location": "query"
+   }
+  },
+  {
+   "link_id": "link:5da98abdefda28ff",
+   "issue_id": "issue:b399060a3505bce4",
+   "sast_ids": [
+    "sast:248d76cb22e2a232"
+   ],
+   "dast_ids": [
+    "dast:32f3f44827f5e09742b24b4fec3299852907e204"
+   ],
+   "strength": "strong",
+   "match_basis": {
+    "cwe_family": "CWE-89",
+    "runtime_route": "/account/orders.php",
+    "kind": "exact",
+    "code_route": "/account/orders.php",
+    "selector": null,
+    "parameter": "sort",
+    "location": "body"
+   }
+  },
+  {
+   "link_id": "link:67630e0d3d76d183",
+   "issue_id": "issue:2e207bba5e3f400f",
+   "sast_ids": [
+    "sast:2ab90485e484e0a1"
+   ],
+   "dast_ids": [
+    "dast:dc6449cd383e0f276f37d3920be316166fe66d9e"
+   ],
+   "strength": "strong",
+   "match_basis": {
+    "cwe_family": "CWE-78",
+    "runtime_route": "/admin/backup.php",
+    "kind": "exact",
+    "code_route": "/admin/backup.php",
+    "selector": null,
+    "parameter": "label",
+    "location": "body"
+   }
+  },
+  {
+   "link_id": "link:8d8199e26754e44f",
+   "issue_id": "issue:d689b8aaf3cb0a11",
+   "sast_ids": [
+    "sast:4e760d3cdfabb84d"
+   ],
+   "dast_ids": [
+    "dast:7a2d3692886ddbea326ae0658f4c24387ce46076"
+   ],
+   "strength": "strong",
+   "match_basis": {
+    "cwe_family": "CWE-89",
+    "runtime_route": "/login.php",
+    "kind": "exact",
+    "code_route": "/login.php",
+    "selector": null,
+    "parameter": "username",
+    "location": "body"
+   }
+  },
+  {
+   "link_id": "link:9f032338142384cf",
+   "issue_id": "issue:332677e81ff40365",
+   "sast_ids": [
+    "sast:5fe6e7e7800b02ac"
+   ],
+   "dast_ids": [
+    "dast:eeafd20134da3883c6113c12fee497ad5a943c6a"
+   ],
+   "strength": "strong",
+   "match_basis": {
+    "cwe_family": "CWE-78",
+    "runtime_route": "/tools/ping.php",
+    "kind": "exact",
+    "code_route": "/tools/ping.php",
+    "selector": null,
+    "parameter": "host",
+    "location": "body"
+   }
+  },
+  {
+   "link_id": "link:bc0fbe3440227039",
+   "issue_id": "issue:2f68348d922a0336",
+   "sast_ids": [
+    "sast:9ed588df1ffbd254"
+   ],
+   "dast_ids": [
+    "dast:d257844cbf3210a125797275041e0634777fdc30"
+   ],
+   "strength": "strong",
+   "match_basis": {
+    "cwe_family": "CWE-78",
+    "runtime_route": "/tools/lookup.php",
+    "kind": "exact",
+    "code_route": "/tools/lookup.php",
+    "selector": null,
+    "parameter": "domain",
+    "location": "query"
+   }
+  },
+  {
+   "link_id": "link:ed6a936befdff1fd",
+   "issue_id": "issue:15e9f9813aaca30a",
+   "sast_ids": [
+    "sast:b5692af6ddbc713d"
+   ],
+   "dast_ids": [
+    "dast:6453674536ec7cbefd6b336be551ac4415c2d124"
+   ],
+   "strength": "strong",
+   "match_basis": {
+    "cwe_family": "CWE-78",
+    "runtime_route": "/api/convert.php",
+    "kind": "exact",
+    "code_route": "/api/convert.php",
+    "selector": null,
+    "parameter": "format",
+    "location": "query"
+   }
+  },
+  {
+   "link_id": "link:f29bbc5d681397e4",
+   "issue_id": "issue:8ad1ec8efad3fb7b",
+   "sast_ids": [
+    "sast:7384ab146bb2f1ea"
+   ],
+   "dast_ids": [
+    "dast:d774320aa05e42790b3aaae98adfbe86a3f24a2e"
+   ],
+   "strength": "strong",
+   "match_basis": {
+    "cwe_family": "CWE-89",
+    "runtime_route": "/shop.php",
+    "kind": "exact",
+    "code_route": "/shop.php",
+    "selector": "action=view",
+    "parameter": "pid",
+    "location": "query"
+   }
+  },
+  {
+   "link_id": "link:fd3174ea9c2fb423",
+   "issue_id": "issue:b399060a3505bce4",
+   "sast_ids": [
+    "sast:248d76cb22e2a232"
+   ],
+   "dast_ids": [
+    "dast:225ce6477de9cb75705bfcc3ab4f11d258c7dd7e"
+   ],
+   "strength": "strong",
+   "match_basis": {
+    "cwe_family": "CWE-89",
+    "runtime_route": "/account/orders.php",
+    "kind": "exact",
+    "code_route": "/account/orders.php",
+    "selector": null,
+    "parameter": "sort",
+    "location": "query"
+   }
+  }
+ ],
+ "conflicts": [],
+ "suppressed": [
+  {
+   "sast_id": "sast:0616d7e0ab3a6dba",
+   "cwe": "CWE-601",
+   "file": "app/public/welcome.php",
+   "line": 7,
+   "reason": "value checked against an allowlist"
+  },
+  {
+   "sast_id": "sast:255b807e554126c8",
+   "cwe": "CWE-79",
+   "file": "app/public/export.php",
+   "line": 5,
+   "reason": "response isn't HTML"
+  },
+  {
+   "sast_id": "sast:2ea31ccff3f07030",
+   "cwe": "CWE-89",
+   "file": "app/public/category.php",
+   "line": 4,
+   "reason": "numeric cast or validation"
+  }
+ ],
+ "diagnostics": [],
+ "stats": {
+  "issues": 41,
+  "reportable": 41,
+  "confirmed": 19,
+  "code_only": 14,
+  "runtime_only": 8,
+  "links": 23,
+  "ambiguous": 0,
+  "conflicts": 0,
+  "conflict_issues": 0,
+  "suppressed": 12,
+  "runtime_coverage": {
+   "points_found": 42,
+   "points_dropped_by_scope": 2,
+   "points_tested": 40,
+   "points_hinted": 27,
+   "deadline_reached": false,
+   "probe_seconds": {
+    "open_redirect": 5.0,
+    "path_traversal": 32.8,
+    "cmdi": 67.61,
+    "xss": 42.53,
+    "sqli": 64.17
+   },
+   "session_relogins": 0,
+   "fixed_runtime_context": {}
+  },
+  "investigated": 3,
+  "upgraded": 0
+ },
+ "investigations": [
+  {
+   "case_id": "case:11413943f4ec1158",
+   "kind": "verify",
+   "issue_id": "issue:cbfe3f7afa57638e",
+   "source": {
+    "sast_ids": [
+     "sast:5a30817665ff8b28"
+    ],
+    "cwe": "CWE-22",
+    "route": "/page.php",
+    "selector": null,
+    "param": "name",
+    "location": "query",
+    "methods": [
+     "GET"
+    ],
+    "file": "app/public/page.php",
+    "line": 3
+   },
+   "rounds": [
+    {
+     "round": 1,
+     "plan": {
+      "cwe": "CWE-22",
+      "method": "GET",
+      "route": "/page.php",
+      "selector": null,
+      "param": "name",
+      "location": "query",
+      "fields": {},
+      "hint": null,
+      "origin": "default",
+      "reason": "re-test of what the code describes"
+     },
+     "requests_sent": [
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "/etc/passwd"
+       },
+       "body": {},
+       "status": 200,
+       "length": 405,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages//etc/passwd.php): Failed to open stream: No such file or directory in <b>/var/www/shop/public/page",
+       "seconds": 0.02
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "/windows/win.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 415,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages//windows/win.ini.php): Failed to open stream: No such file or directory in <b>/var/www/shop/public",
+       "seconds": 0.03
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "/windows/system.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 421,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages//windows/system.ini.php): Failed to open stream: No such file or directory in <b>/var/www/shop/pub",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "C:\\etc/passwd"
+       },
+       "body": {},
+       "status": 200,
+       "length": 409,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/C:\\etc/passwd.php): Failed to open stream: No such file or directory in <b>/var/www/shop/public/pa",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "C:\\windows/win.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 419,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/C:\\windows/win.ini.php): Failed to open stream: No such file or directory in <b>/var/www/shop/publ",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "C:\\windows/system.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 425,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/C:\\windows/system.ini.php): Failed to open stream: No such file or directory in <b>/var/www/shop/p",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "C:/etc/passwd"
+       },
+       "body": {},
+       "status": 200,
+       "length": 409,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/C:/etc/passwd.php): Failed to open stream: No such file or directory in <b>/var/www/shop/public/pa",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "C:/windows/win.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 419,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/C:/windows/win.ini.php): Failed to open stream: No such file or directory in <b>/var/www/shop/publ",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "C:/windows/system.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 425,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/C:/windows/system.ini.php): Failed to open stream: No such file or directory in <b>/var/www/shop/p",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "../../etc/passwd"
+       },
+       "body": {},
+       "status": 200,
+       "length": 415,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/../../etc/passwd.php): Failed to open stream: No such file or directory in <b>/var/www/shop/public",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "../../windows/win.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 425,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/../../windows/win.ini.php): Failed to open stream: No such file or directory in <b>/var/www/shop/p",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "../../windows/system.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 431,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/../../windows/system.ini.php): Failed to open stream: No such file or directory in <b>/var/www/sho",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "../../../../etc/passwd"
+       },
+       "body": {},
+       "status": 200,
+       "length": 427,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/../../../../etc/passwd.php): Failed to open stream: No such file or directory in <b>/var/www/shop/",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "../../../../windows/win.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 437,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/../../../../windows/win.ini.php): Failed to open stream: No such file or directory in <b>/var/www/",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "../../../../windows/system.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 443,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/../../../../windows/system.ini.php): Failed to open stream: No such file or directory in <b>/var/w",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "../../../../../../etc/passwd"
+       },
+       "body": {},
+       "status": 200,
+       "length": 439,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/../../../../../../etc/passwd.php): Failed to open stream: No such file or directory in <b>/var/www",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "../../../../../../windows/win.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 449,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/../../../../../../windows/win.ini.php): Failed to open stream: No such file or directory in <b>/va",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "../../../../../../windows/system.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 455,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/../../../../../../windows/system.ini.php): Failed to open stream: No such file or directory in <b>",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "../../../../../../../../etc/passwd"
+       },
+       "body": {},
+       "status": 200,
+       "length": 451,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/../../../../../../../../etc/passwd.php): Failed to open stream: No such file or directory in <b>/v",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "../../../../../../../../windows/win.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 461,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/../../../../../../../../windows/win.ini.php): Failed to open stream: No such file or directory in ",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "../../../../../../../../windows/system.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 467,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/../../../../../../../../windows/system.ini.php): Failed to open stream: No such file or directory ",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "../../../../../../../../../../etc/passwd"
+       },
+       "body": {},
+       "status": 200,
+       "length": 463,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/../../../../../../../../../../etc/passwd.php): Failed to open stream: No such file or directory in",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "../../../../../../../../../../windows/win.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 473,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/../../../../../../../../../../windows/win.ini.php): Failed to open stream: No such file or directo",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "../../../../../../../../../../windows/system.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 479,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/../../../../../../../../../../windows/system.ini.php): Failed to open stream: No such file or dire",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "../../../../../../../../../../../../etc/passwd"
+       },
+       "body": {},
+       "status": 200,
+       "length": 475,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/../../../../../../../../../../../../etc/passwd.php): Failed to open stream: No such file or direct",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "../../../../../../../../../../../../windows/win.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 485,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/../../../../../../../../../../../../windows/win.ini.php): Failed to open stream: No such file or d",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "../../../../../../../../../../../../windows/system.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 491,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/../../../../../../../../../../../../windows/system.ini.php): Failed to open stream: No such file o",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "..\\..\\etc/passwd"
+       },
+       "body": {},
+       "status": 200,
+       "length": 415,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/..\\..\\etc/passwd.php): Failed to open stream: No such file or directory in <b>/var/www/shop/public",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "..\\..\\windows/win.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 425,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/..\\..\\windows/win.ini.php): Failed to open stream: No such file or directory in <b>/var/www/shop/p",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "..\\..\\windows/system.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 431,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/..\\..\\windows/system.ini.php): Failed to open stream: No such file or directory in <b>/var/www/sho",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "..\\..\\..\\..\\etc/passwd"
+       },
+       "body": {},
+       "status": 200,
+       "length": 427,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/..\\..\\..\\..\\etc/passwd.php): Failed to open stream: No such file or directory in <b>/var/www/shop/",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "..\\..\\..\\..\\windows/win.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 437,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/..\\..\\..\\..\\windows/win.ini.php): Failed to open stream: No such file or directory in <b>/var/www/",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "..\\..\\..\\..\\windows/system.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 443,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/..\\..\\..\\..\\windows/system.ini.php): Failed to open stream: No such file or directory in <b>/var/w",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "..\\..\\..\\..\\..\\..\\etc/passwd"
+       },
+       "body": {},
+       "status": 200,
+       "length": 439,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/..\\..\\..\\..\\..\\..\\etc/passwd.php): Failed to open stream: No such file or directory in <b>/var/www",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "..\\..\\..\\..\\..\\..\\windows/win.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 449,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/..\\..\\..\\..\\..\\..\\windows/win.ini.php): Failed to open stream: No such file or directory in <b>/va",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "..\\..\\..\\..\\..\\..\\windows/system.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 455,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/..\\..\\..\\..\\..\\..\\windows/system.ini.php): Failed to open stream: No such file or directory in <b>",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "..\\..\\..\\..\\..\\..\\..\\..\\etc/passwd"
+       },
+       "body": {},
+       "status": 200,
+       "length": 451,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/..\\..\\..\\..\\..\\..\\..\\..\\etc/passwd.php): Failed to open stream: No such file or directory in <b>/v",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "..\\..\\..\\..\\..\\..\\..\\..\\windows/win.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 461,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/..\\..\\..\\..\\..\\..\\..\\..\\windows/win.ini.php): Failed to open stream: No such file or directory in ",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "..\\..\\..\\..\\..\\..\\..\\..\\windows/system.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 467,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/..\\..\\..\\..\\..\\..\\..\\..\\windows/system.ini.php): Failed to open stream: No such file or directory ",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "..\\..\\..\\..\\..\\..\\..\\..\\..\\..\\etc/passwd"
+       },
+       "body": {},
+       "status": 200,
+       "length": 463,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/..\\..\\..\\..\\..\\..\\..\\..\\..\\..\\etc/passwd.php): Failed to open stream: No such file or directory in",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "..\\..\\..\\..\\..\\..\\..\\..\\..\\..\\windows/win.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 473,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/..\\..\\..\\..\\..\\..\\..\\..\\..\\..\\windows/win.ini.php): Failed to open stream: No such file or directo",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "..\\..\\..\\..\\..\\..\\..\\..\\..\\..\\windows/system.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 479,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/..\\..\\..\\..\\..\\..\\..\\..\\..\\..\\windows/system.ini.php): Failed to open stream: No such file or dire",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "..\\..\\..\\..\\..\\..\\..\\..\\..\\..\\..\\..\\etc/passwd"
+       },
+       "body": {},
+       "status": 200,
+       "length": 475,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/..\\..\\..\\..\\..\\..\\..\\..\\..\\..\\..\\..\\etc/passwd.php): Failed to open stream: No such file or direct",
+       "seconds": 0.06
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "..\\..\\..\\..\\..\\..\\..\\..\\..\\..\\..\\..\\windows/win.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 485,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/..\\..\\..\\..\\..\\..\\..\\..\\..\\..\\..\\..\\windows/win.ini.php): Failed to open stream: No such file or d",
+       "seconds": 0.02
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "..\\..\\..\\..\\..\\..\\..\\..\\..\\..\\..\\..\\windows/system.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 491,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/..\\..\\..\\..\\..\\..\\..\\..\\..\\..\\..\\..\\windows/system.ini.php): Failed to open stream: No such file o",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "....//....//etc/passwd"
+       },
+       "body": {},
+       "status": 200,
+       "length": 427,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/....//....//etc/passwd.php): Failed to open stream: No such file or directory in <b>/var/www/shop/",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "....//....//windows/win.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 437,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/....//....//windows/win.ini.php): Failed to open stream: No such file or directory in <b>/var/www/",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "....//....//windows/system.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 443,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/....//....//windows/system.ini.php): Failed to open stream: No such file or directory in <b>/var/w",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "....//....//....//....//etc/passwd"
+       },
+       "body": {},
+       "status": 200,
+       "length": 451,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/....//....//....//....//etc/passwd.php): Failed to open stream: No such file or directory in <b>/v",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "....//....//....//....//windows/win.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 461,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/....//....//....//....//windows/win.ini.php): Failed to open stream: No such file or directory in ",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "....//....//....//....//windows/system.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 467,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/....//....//....//....//windows/system.ini.php): Failed to open stream: No such file or directory ",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "....//....//....//....//....//....//etc/passwd"
+       },
+       "body": {},
+       "status": 200,
+       "length": 475,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/....//....//....//....//....//....//etc/passwd.php): Failed to open stream: No such file or direct",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "....//....//....//....//....//....//windows/win.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 485,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/....//....//....//....//....//....//windows/win.ini.php): Failed to open stream: No such file or d",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "....//....//....//....//....//....//windows/system.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 491,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/....//....//....//....//....//....//windows/system.ini.php): Failed to open stream: No such file o",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "....//....//....//....//....//....//....//....//etc/passwd"
+       },
+       "body": {},
+       "status": 200,
+       "length": 499,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/....//....//....//....//....//....//....//....//etc/passwd.php): Failed to open stream: No such fi",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "....//....//....//....//....//....//....//....//windows/win.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 509,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/....//....//....//....//....//....//....//....//windows/win.ini.php): Failed to open stream: No su",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "....//....//....//....//....//....//....//....//windows/system.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 515,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/....//....//....//....//....//....//....//....//windows/system.ini.php): Failed to open stream: No",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "....//....//....//....//....//....//....//....//....//....//etc/passwd"
+       },
+       "body": {},
+       "status": 200,
+       "length": 523,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/....//....//....//....//....//....//....//....//....//....//etc/passwd.php): Failed to open stream",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "....//....//....//....//....//....//....//....//....//....//windows/win.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 533,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/....//....//....//....//....//....//....//....//....//....//windows/win.ini.php): Failed to open s",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "....//....//....//....//....//....//....//....//....//....//windows/system.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 539,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/....//....//....//....//....//....//....//....//....//....//windows/system.ini.php): Failed to ope",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "....//....//....//....//....//....//....//....//....//....//....//....//etc/passwd"
+       },
+       "body": {},
+       "status": 200,
+       "length": 547,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/....//....//....//....//....//....//....//....//....//....//....//....//etc/passwd.php): Failed to",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "....//....//....//....//....//....//....//....//....//....//....//....//windows/win.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 557,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/....//....//....//....//....//....//....//....//....//....//....//....//windows/win.ini.php): Fail",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "....//....//....//....//....//....//....//....//....//....//....//....//windows/system.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 563,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/....//....//....//....//....//....//....//....//....//....//....//....//windows/system.ini.php): F",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "....\\\\....\\\\etc/passwd"
+       },
+       "body": {},
+       "status": 200,
+       "length": 427,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/....\\\\....\\\\etc/passwd.php): Failed to open stream: No such file or directory in <b>/var/www/shop/",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "....\\\\....\\\\windows/win.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 437,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/....\\\\....\\\\windows/win.ini.php): Failed to open stream: No such file or directory in <b>/var/www/",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "....\\\\....\\\\windows/system.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 443,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/....\\\\....\\\\windows/system.ini.php): Failed to open stream: No such file or directory in <b>/var/w",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "....\\\\....\\\\....\\\\....\\\\etc/passwd"
+       },
+       "body": {},
+       "status": 200,
+       "length": 451,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/....\\\\....\\\\....\\\\....\\\\etc/passwd.php): Failed to open stream: No such file or directory in <b>/v",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "....\\\\....\\\\....\\\\....\\\\windows/win.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 461,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/....\\\\....\\\\....\\\\....\\\\windows/win.ini.php): Failed to open stream: No such file or directory in ",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "....\\\\....\\\\....\\\\....\\\\windows/system.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 467,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/....\\\\....\\\\....\\\\....\\\\windows/system.ini.php): Failed to open stream: No such file or directory ",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\etc/passwd"
+       },
+       "body": {},
+       "status": 200,
+       "length": 475,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\etc/passwd.php): Failed to open stream: No such file or direct",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\windows/win.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 485,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\windows/win.ini.php): Failed to open stream: No such file or d",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\windows/system.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 491,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\windows/system.ini.php): Failed to open stream: No such file o",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\etc/passwd"
+       },
+       "body": {},
+       "status": 200,
+       "length": 499,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\etc/passwd.php): Failed to open stream: No such fi",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\windows/win.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 509,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\windows/win.ini.php): Failed to open stream: No su",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\windows/system.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 515,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\windows/system.ini.php): Failed to open stream: No",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\etc/passwd"
+       },
+       "body": {},
+       "status": 200,
+       "length": 523,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\etc/passwd.php): Failed to open stream",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\windows/win.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 533,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\windows/win.ini.php): Failed to open s",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\windows/system.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 539,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\windows/system.ini.php): Failed to ope",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\etc/passwd"
+       },
+       "body": {},
+       "status": 200,
+       "length": 547,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\etc/passwd.php): Failed to",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\windows/win.ini"
+       },
+       "body": {},
+       "status": 200,
+       "length": 557,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\....\\\\windows/win.ini.php): Fail",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "ctrl8xjdect3gx"
+       },
+       "body": {},
+       "status": 200,
+       "length": 411,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/ctrl8xjdect3gx.php): Failed to open stream: No such file or directory in <b>/var/www/shop/public/p",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "../../../../../../etc/passwd"
+       },
+       "body": {},
+       "status": 200,
+       "length": 439,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/../../../../../../etc/passwd.php): Failed to open stream: No such file or directory in <b>/var/www",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "../../../../../../etc/nofile29pjstvg"
+       },
+       "body": {},
+       "status": 200,
+       "length": 455,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/../../../../../../etc/nofile29pjstvg.php): Failed to open stream: No such file or directory in <b>",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "../../../../../../../../../../etc/passwd"
+       },
+       "body": {},
+       "status": 200,
+       "length": 463,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/../../../../../../../../../../etc/passwd.php): Failed to open stream: No such file or directory in",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/page.php",
+       "query": {
+        "name": "../../../../../../../../../../etc/nofiler88km8q8"
+       },
+       "body": {},
+       "status": 200,
+       "length": 479,
+       "excerpt": "<br />\n<b>Warning</b>:  include(/var/www/shop/public/../pages/../../../../../../../../../../etc/nofiler88km8q8.php): Failed to open stream: No such file or dire",
+       "seconds": 0.04
+      }
+     ],
+     "outcome": "not reproduced",
+     "error": null,
+     "finding_id": null,
+     "evidence": null,
+     "effect": {
+      "linked": false,
+      "changed": false,
+      "before": {
+       "label": "Code only",
+       "level": "none"
+      },
+      "after": {
+       "label": "Code only",
+       "level": "none"
+      }
+     }
+    }
+   ],
+   "outcome": "unresolved",
+   "stop_reason": "no planner is configured"
+  },
+  {
+   "case_id": "case:f5db28d3e2fb3d37",
+   "kind": "verify",
+   "issue_id": "issue:1acfb8c70e007acc",
+   "source": {
+    "sast_ids": [
+     "sast:8e95ee795cda0b0d"
+    ],
+    "cwe": "CWE-601",
+    "route": "/lang.php",
+    "selector": null,
+    "param": "back",
+    "location": "query",
+    "methods": [
+     "GET"
+    ],
+    "file": "app/public/lang.php",
+    "line": 4
+   },
+   "rounds": [
+    {
+     "round": 1,
+     "plan": {
+      "cwe": "CWE-601",
+      "method": "GET",
+      "route": "/lang.php",
+      "selector": null,
+      "param": "back",
+      "location": "query",
+      "fields": {},
+      "hint": null,
+      "origin": "default",
+      "reason": "re-test of what the code describes"
+     },
+     "requests_sent": [
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/lang.php",
+       "query": {
+        "back": "https://dast-canary.invalid/"
+       },
+       "body": {},
+       "status": 200,
+       "length": 14,
+       "excerpt": "Language saved",
+       "seconds": 0.01
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/lang.php",
+       "query": {
+        "back": "http://dast-canary.invalid/"
+       },
+       "body": {},
+       "status": 200,
+       "length": 14,
+       "excerpt": "Language saved",
+       "seconds": 0.03
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/lang.php",
+       "query": {
+        "back": "//dast-canary.invalid/"
+       },
+       "body": {},
+       "status": 200,
+       "length": 14,
+       "excerpt": "Language saved",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/lang.php",
+       "query": {
+        "back": "/\\dast-canary.invalid"
+       },
+       "body": {},
+       "status": 200,
+       "length": 14,
+       "excerpt": "Language saved",
+       "seconds": 0.04
+      },
+      {
+       "method": "GET",
+       "url": "http://127.0.0.1:8088/lang.php",
+       "query": {
+        "back": "HTTPS://dast-canary.invalid/"
+       },
+       "body": {},
+       "status": 200,
+       "length": 14,
+       "excerpt": "Language saved",
+       "seconds": 0.04
+      }
+     ],
+     "outcome": "not reproduced",
+     "error": null,
+     "finding_id": null,
+     "evidence": null,
+     "effect": {
+      "linked": false,
+      "changed": false,
+      "before": {
+       "label": "Code only",
+       "level": "none"
+      },
+      "after": {
+       "label": "Code only",
+       "level": "none"
+      }
+     }
+    }
+   ],
+   "outcome": "unresolved",
+   "stop_reason": "no planner is configured"
+  }
+ ],
+ "_fixture": "Real excerpt of a scan of sast-engine/benchmarks/shop with 'python -m cyberforge scan --no-ai' on 2026-11-01. Issues were selected by label and proof level; stats are the real full-run stats."
+}

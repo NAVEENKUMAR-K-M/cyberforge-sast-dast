@@ -26,5 +26,6 @@ benchmarks
 research_notes
 reports
 sast-engine/benchmarks
+sca/benchmarks
 sast-engine/out
 *.pdf

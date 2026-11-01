@@ -1,0 +1,587 @@
+{
+ "source": "/private/tmp/claude-501/-Users-ntbnaren7-Dev-cyberforge-sast-dast/59ee01fc-3970-46e3-94cf-a6ea219fdb01/scratchpad/readme/sca_bench/sca.json",
+ "advisory_lookup": {
+  "source": "OSV",
+  "status": "ok",
+  "error": null,
+  "fetched_at": "2026-11-01T03:35:53Z",
+  "not_checked": {},
+  "no_known_advisories": {
+   "packages": [
+    "league/flysystem-local",
+    "league/mime-type-detection",
+    "nyholm/psr7",
+    "nyholm/psr7-server",
+    "psr/http-factory",
+    "psr/http-message",
+    "symfony/deprecation-contracts",
+    "symfony/polyfill-ctype",
+    "symfony/polyfill-mbstring",
+    "symfony/psr-http-message-bridge"
+   ],
+   "note": "no known advisories returned by OSV at 2026-11-01T03:35:53Z"
+  }
+ },
+ "rows": [
+  {
+   "id": "155ccae00d1a5b9a",
+   "package": "symfony/http-foundation",
+   "version": "v7.4.18",
+   "dev": false,
+   "dependency_path": [
+    "cyberforge/sca-benchmark",
+    "symfony/http-foundation"
+   ],
+   "advisory": {
+    "id": "GHSA-r925-mgvr-h9cc",
+    "aliases": [
+     "CVE-2026-108082"
+    ],
+    "cves": [
+     "CVE-2026-108082"
+    ],
+    "url": "https://osv.dev/vulnerability/GHSA-r925-mgvr-h9cc",
+    "summary": "Symfony: ReDoS in HeaderUtils::split() Reachable Through the Cache-Control Request Header",
+    "published": "2026-10-27T19:01:39Z",
+    "modified": "2026-10-27T19:15:22.507345290Z",
+    "fixed_versions": [
+     "7.4.19"
+    ],
+    "cvss": {
+     "score": 8.7,
+     "vector": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:N/VI:N/VA:H/SC:N/SI:N/SA:N",
+     "version": "4.0",
+     "source": "GHSA"
+    },
+    "epss": {
+     "status": "ok",
+     "epss": 0.0048,
+     "percentile": 0.41459,
+     "date": "2026-10-31",
+     "fetched_at": "2026-11-01T03:35:57Z"
+    },
+    "kev": {
+     "status": "not listed",
+     "fetched_at": "2026-11-01T03:36:01Z"
+    },
+    "record": "ok",
+    "fetched_at": "2026-11-01T03:35:55Z",
+    "ghsa": {
+     "status": "ok",
+     "id": "GHSA-r925-mgvr-h9cc",
+     "fetched_at": "2026-11-01T03:35:56Z",
+     "cwes": [
+      "CWE-1333"
+     ]
+    }
+   },
+   "status": "Reachable",
+   "reason": "Symfony\\Component\\HttpFoundation\\HeaderUtils::split (changed by fix commit symfony/symfony@343a1772ce6a and named in the advisory text) is reached from <public/index.php> in 7 calls, each resolved to one target",
+   "path": [
+    {
+     "function": "<public/index.php>",
+     "package": "<root>",
+     "file": "public/index.php",
+     "line": 1
+    },
+    {
+     "function": "Symfony\\Bridge\\PsrHttpMessage\\Factory\\HttpFoundationFactory::createRequest",
+     "package": "symfony/psr-http-message-bridge",
+     "file": "vendor/symfony/psr-http-message-bridge/Factory/HttpFoundationFactory.php",
+     "line": 37,
+     "called_from": {
+      "file": "public/index.php",
+      "line": 17,
+      "code": "$factory->createRequest($psrRequest)",
+      "how": "receiver created with new",
+      "exact": true
+     }
+    },
+    {
+     "function": "Symfony\\Component\\HttpFoundation\\Request::__construct",
+     "package": "symfony/http-foundation",
+     "file": "vendor/symfony/http-foundation/Request.php",
+     "line": 244,
+     "called_from": {
+      "file": "vendor/symfony/psr-http-message-bridge/Factory/HttpFoundationFactory.php",
+      "line": 62,
+      "code": "new Request( $psrRequest->getQueryParams(), $parsedBody, $psrRequest->getAttributes(), $psrRequest->getCookieParams(), $this->getFiles($psrR",
+      "how": "new",
+      "exact": true
+     }
+    },
+    {
+     "function": "Symfony\\Component\\HttpFoundation\\Request::initialize",
+     "package": "symfony/http-foundation",
+     "file": "vendor/symfony/http-foundation/Request.php",
+     "line": 262,
+     "called_from": {
+      "file": "vendor/symfony/http-foundation/Request.php",
+      "line": 246,
+      "code": "$this->initialize($query, $request, $attributes, $cookies, $files, $server, $content)",
+      "how": "$this",
+      "exact": true
+     }
+    },
+    {
+     "function": "Symfony\\Component\\HttpFoundation\\HeaderBag::__construct",
+     "package": "symfony/http-foundation",
+     "file": "vendor/symfony/http-foundation/HeaderBag.php",
+     "line": 32,
+     "called_from": {
+      "file": "vendor/symfony/http-foundation/Request.php",
+      "line": 270,
+      "code": "new HeaderBag($this->server->getHeaders())",
+      "how": "new",
+      "exact": true
+     }
+    },
+    {
+     "function": "Symfony\\Component\\HttpFoundation\\HeaderBag::set",
+     "package": "symfony/http-foundation",
+     "file": "vendor/symfony/http-foundation/HeaderBag.php",
+     "line": 130,
+     "called_from": {
+      "file": "vendor/symfony/http-foundation/HeaderBag.php",
+      "line": 35,
+      "code": "$this->set($key, $values)",
+      "how": "$this",
+      "exact": true
+     }
+    },
+    {
+     "function": "Symfony\\Component\\HttpFoundation\\HeaderBag::parseCacheControl",
+     "package": "symfony/http-foundation",
+     "file": "vendor/symfony/http-foundation/HeaderBag.php",
+     "line": 267,
+     "called_from": {
+      "file": "vendor/symfony/http-foundation/HeaderBag.php",
+      "line": 151,
+      "code": "$this->parseCacheControl(implode(', ', $this->headers[$key]))",
+      "how": "$this",
+      "exact": true
+     }
+    },
+    {
+     "function": "Symfony\\Component\\HttpFoundation\\HeaderUtils::split",
+     "package": "symfony/http-foundation",
+     "file": "vendor/symfony/http-foundation/HeaderUtils.php",
+     "line": 45,
+     "called_from": {
+      "file": "vendor/symfony/http-foundation/HeaderBag.php",
+      "line": 269,
+      "code": "HeaderUtils::split($header, ',=')",
+      "how": "static call",
+      "exact": true
+     }
+    }
+   ],
+   "assumptions": [
+    "a method called on an object created with new runs that class's method",
+    "`new X` runs X's constructor",
+    "a call on $this runs in the class the object was created as, when that is known",
+    "a static call runs the named class's method"
+   ],
+   "symbols": {
+    "affected": [
+     {
+      "symbol": "Symfony\\Component\\HttpFoundation\\HeaderUtils::split",
+      "key": "symfony\\component\\httpfoundation\\headerutils::split",
+      "exists": true,
+      "provenance": "changed by fix commit symfony/symfony@343a1772ce6a and named in the advisory text"
+     }
+    ],
+    "candidates": [],
+    "unresolved": []
+   },
+   "patches": [
+    {
+     "commit": "symfony/symfony@343a1772ce6a",
+     "url": "https://github.com/symfony/symfony/commit/343a1772ce6ac03e48b228d2d7168d19750e3f36.patch",
+     "mapped": [
+      {
+       "symbol": "Symfony\\Component\\HttpFoundation\\HeaderUtils::split",
+       "how": "patch located in this version's file at line 61"
+      }
+     ],
+     "skipped": [
+      "src/Symfony/Component/HttpFoundation/Tests/HeaderUtilsTest.php: a test or documentation"
+     ],
+     "unmapped": [],
+     "fetched_at": "2026-11-01T04:00:52Z"
+    },
+    {
+     "commit": "symfony/symfony@9ffa802e5d7e",
+     "url": "https://github.com/symfony/symfony/commit/9ffa802e5d7e9fb8ba95eeefd27e863e83b1baca.patch",
+     "mapped": [],
+     "skipped": [
+      "src/Symfony/Component/HttpFoundation/Tests/HeaderUtilsTest.php: a test or documentation"
+     ],
+     "unmapped": [
+      "src/Symfony/Component/HttpFoundation/HeaderUtils.php hunk at line 60: the patch doesn't match this version's file"
+     ],
+     "fetched_at": "2026-11-01T04:00:52Z"
+    }
+   ],
+   "source": {
+    "path": "/Users/ntbnaren7/Dev/cyberforge-sast-dast/sca/benchmarks/composer-app/vendor/symfony/http-foundation",
+    "identity": "install record matches the lock's version and reference",
+    "integrity": "not verified: the files were not compared with a published checksum"
+   },
+   "scope": {
+    "roots": "every app file with top-level code (2; no route map given)",
+    "packages_analysed": [
+     "symfony/http-foundation",
+     "symfony/psr-http-message-bridge"
+    ],
+    "call_kinds": [
+     "namespaced and global functions (use function included)",
+     "static calls, self::, parent::, static::",
+     "new and the constructor it runs",
+     "$this, with the object's class when it was created with new",
+     "receivers typed by a parameter, property or return type, or assigned from new",
+     "inherited and trait methods",
+     "literal includes and vendor/autoload.php",
+     "callables written as literal strings or arrays"
+    ]
+   },
+   "limits": [],
+   "rank": 1
+  },
+  {
+   "id": "839bee115f7255dc",
+   "package": "symfony/yaml",
+   "version": "v7.4.17",
+   "dev": false,
+   "dependency_path": [
+    "cyberforge/sca-benchmark",
+    "symfony/yaml"
+   ],
+   "advisory": {
+    "id": "GHSA-2v3c-qxhr-7vpv",
+    "aliases": [
+     "CVE-2026-109413"
+    ],
+    "cves": [
+     "CVE-2026-109413"
+    ],
+    "url": "https://osv.dev/vulnerability/GHSA-2v3c-qxhr-7vpv",
+    "summary": "Symfony: Unbounded Recursion in the YAML Inline Lexer Lets a Single Document Crash the Process",
+    "published": "2026-10-27T19:01:50Z",
+    "modified": "2026-10-27T19:15:22.509637770Z",
+    "fixed_versions": [
+     "7.4.18"
+    ],
+    "cvss": {
+     "score": 8.7,
+     "vector": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:N/VI:N/VA:H/SC:N/SI:N/SA:N",
+     "version": "4.0",
+     "source": "GHSA"
+    },
+    "epss": {
+     "status": "ok",
+     "epss": 0.00395,
+     "percentile": 0.3378,
+     "date": "2026-10-31",
+     "fetched_at": "2026-11-01T03:35:57Z"
+    },
+    "kev": {
+     "status": "not listed",
+     "fetched_at": "2026-11-01T03:36:01Z"
+    },
+    "record": "ok",
+    "fetched_at": "2026-11-01T03:35:53Z",
+    "ghsa": {
+     "status": "ok",
+     "id": "GHSA-2v3c-qxhr-7vpv",
+     "fetched_at": "2026-11-01T03:35:57Z",
+     "cwes": [
+      "CWE-674"
+     ]
+    }
+   },
+   "status": "Unknown",
+   "reason": "Symfony\\Component\\Yaml\\Parser::lexInlineStructure is reached only through a call that isn't resolved to one target (dynamic method name: any method of the receiver at public/import.php:11)",
+   "path": [
+    {
+     "function": "<public/import.php>",
+     "package": "<root>",
+     "file": "public/import.php",
+     "line": 1
+    },
+    {
+     "function": "Symfony\\Component\\Yaml\\Parser::parse",
+     "package": "symfony/yaml",
+     "file": "vendor/symfony/yaml/Parser.php",
+     "line": 94,
+     "called_from": {
+      "file": "public/import.php",
+      "line": 11,
+      "code": "$parser->$action($_POST['document'] ?? '')",
+      "how": "dynamic method name: any method of the receiver",
+      "exact": false
+     }
+    },
+    {
+     "function": "Symfony\\Component\\Yaml\\Parser::doParse",
+     "package": "symfony/yaml",
+     "file": "vendor/symfony/yaml/Parser.php",
+     "line": 128,
+     "called_from": {
+      "file": "vendor/symfony/yaml/Parser.php",
+      "line": 106,
+      "code": "$this->doParse($value, $flags)",
+      "how": "$this",
+      "exact": true
+     }
+    },
+    {
+     "function": "Symfony\\Component\\Yaml\\Parser::lexInlineMapping",
+     "package": "symfony/yaml",
+     "file": "vendor/symfony/yaml/Parser.php",
+     "line": 1254,
+     "called_from": {
+      "file": "vendor/symfony/yaml/Parser.php",
+      "line": 416,
+      "code": "$this->lexInlineMapping()",
+      "how": "$this",
+      "exact": true
+     }
+    },
+    {
+     "function": "Symfony\\Component\\Yaml\\Parser::lexInlineStructure",
+     "package": "symfony/yaml",
+     "file": "vendor/symfony/yaml/Parser.php",
+     "line": 1264,
+     "called_from": {
+      "file": "vendor/symfony/yaml/Parser.php",
+      "line": 1256,
+      "code": "$this->lexInlineStructure($cursor, '}', $consumeUntilEol)",
+      "how": "$this",
+      "exact": true
+     }
+    }
+   ],
+   "assumptions": [
+    "dynamic method name: any method of the receiver",
+    "a call on $this runs in the class the object was created as, when that is known"
+   ],
+   "symbols": {
+    "affected": [
+     {
+      "symbol": "Symfony\\Component\\Yaml\\Parser::lexInlineStructure",
+      "key": "symfony\\component\\yaml\\parser::lexinlinestructure",
+      "exists": true,
+      "provenance": "changed by fix commit symfony/symfony@2a8bf9c58d86 and named in the advisory text"
+     }
+    ],
+    "candidates": [],
+    "unresolved": []
+   },
+   "patches": [
+    {
+     "commit": "symfony/symfony@116287c3b5bc",
+     "url": "https://github.com/symfony/symfony/commit/116287c3b5bc057e7a0420d2e52d384e14ea9417.patch",
+     "mapped": [],
+     "skipped": [],
+     "unmapped": [],
+     "fetched_at": "2026-11-01T04:00:53Z",
+     "merge": "a merge of 14 commits: its diff mixes in changes unrelated to this advisory"
+    },
+    {
+     "commit": "symfony/symfony@2a8bf9c58d86",
+     "url": "https://github.com/symfony/symfony/commit/2a8bf9c58d862b0c76a35ce288d1ba6a27223aad.patch",
+     "mapped": [
+      {
+       "symbol": "Symfony\\Component\\Yaml\\Parser::lexInlineStructure",
+       "how": "the patch context declares this function just above the change"
+      }
+     ],
+     "skipped": [
+      "src/Symfony/Component/Yaml/Tests/ParserTest.php: a test or documentation"
+     ],
+     "unmapped": [],
+     "fetched_at": "2026-11-01T04:00:53Z"
+    },
+    {
+     "commit": "symfony/symfony@8fb436fed965",
+     "url": "https://github.com/symfony/symfony/commit/8fb436fed9658a79d220e9f2b1ba8a2095559018.patch",
+     "mapped": [],
+     "skipped": [],
+     "unmapped": [],
+     "fetched_at": "2026-11-01T04:00:54Z",
+     "merge": "a merge of 5 commits: its diff mixes in changes unrelated to this advisory"
+    },
+    {
+     "commit": "symfony/symfony@ab61e6cfd350",
+     "url": "https://github.com/symfony/symfony/commit/ab61e6cfd35042f16840a00f485eab2481dd4c2a.patch",
+     "mapped": [],
+     "skipped": [],
+     "unmapped": [],
+     "fetched_at": "2026-11-01T04:00:54Z",
+     "merge": "a merge of 15 commits: its diff mixes in changes unrelated to this advisory"
+    }
+   ],
+   "source": {
+    "path": "/Users/ntbnaren7/Dev/cyberforge-sast-dast/sca/benchmarks/composer-app/vendor/symfony/yaml",
+    "identity": "install record matches the lock's version and reference",
+    "integrity": "not verified: the files were not compared with a published checksum"
+   },
+   "scope": {
+    "roots": "every app file with top-level code (2; no route map given)",
+    "packages_analysed": [
+     "symfony/yaml"
+    ],
+    "call_kinds": [
+     "namespaced and global functions (use function included)",
+     "static calls, self::, parent::, static::",
+     "new and the constructor it runs",
+     "$this, with the object's class when it was created with new",
+     "receivers typed by a parameter, property or return type, or assigned from new",
+     "inherited and trait methods",
+     "literal includes and vendor/autoload.php",
+     "callables written as literal strings or arrays"
+    ]
+   },
+   "limits": [
+    "declares the executable Resources/bin/yaml-lint; process configuration isn't examined, so whether it is launched is not known"
+   ],
+   "rank": 2
+  },
+  {
+   "id": "1d8cf905fe19c364",
+   "package": "league/flysystem",
+   "version": "3.35.2",
+   "dev": false,
+   "dependency_path": [
+    "cyberforge/sca-benchmark",
+    "league/flysystem"
+   ],
+   "advisory": {
+    "id": "GHSA-cxf4-7mrp-vvpr",
+    "aliases": [
+     "CVE-2026-102601"
+    ],
+    "cves": [
+     "CVE-2026-102601"
+    ],
+    "url": "https://osv.dev/vulnerability/GHSA-cxf4-7mrp-vvpr",
+    "summary": "Flysystem: WhitespacePathNormalizer's control-character (CorruptedPathDetected) check is bypassed by malformed UTF-8 in the path, affecting every adapter",
+    "published": "2026-09-29T18:10:14Z",
+    "modified": "2026-09-30T21:30:04.116870239Z",
+    "fixed_versions": [
+     "3.35.3"
+    ],
+    "cvss": {
+     "score": 3.5,
+     "vector": "CVSS:3.1/AV:N/AC:L/PR:L/UI:R/S:U/C:N/I:L/A:N",
+     "version": "3.1",
+     "source": "GHSA"
+    },
+    "epss": {
+     "status": "ok",
+     "epss": 0.00337,
+     "percentile": 0.27141,
+     "date": "2026-10-31",
+     "fetched_at": "2026-11-01T03:35:57Z"
+    },
+    "kev": {
+     "status": "not listed",
+     "fetched_at": "2026-11-01T03:36:01Z"
+    },
+    "record": "ok",
+    "fetched_at": "2026-11-01T03:35:54Z",
+    "ghsa": {
+     "status": "ok",
+     "id": "GHSA-cxf4-7mrp-vvpr",
+     "fetched_at": "2026-11-01T03:35:55Z",
+     "cwes": [
+      "CWE-150"
+     ]
+    }
+   },
+   "status": "Present-only",
+   "reason": "nothing the app uses, directly or through other packages, mentions league/flysystem, and no root reaches its code",
+   "path": null,
+   "assumptions": [],
+   "symbols": {
+    "affected": [
+     {
+      "symbol": "League\\Flysystem\\WhitespacePathNormalizer::normalizePath",
+      "key": "league\\flysystem\\whitespacepathnormalizer::normalizepath",
+      "exists": true,
+      "provenance": "changed by fix commit thephpleague/flysystem@ef4a9a557d76 and named in the advisory text"
+     }
+    ],
+    "candidates": [],
+    "unresolved": []
+   },
+   "patches": [
+    {
+     "commit": "thephpleague/flysystem@ef4a9a557d76",
+     "url": "https://github.com/thephpleague/flysystem/commit/ef4a9a557d769b5d472c403125716706a0d9cc77.patch",
+     "mapped": [
+      {
+       "symbol": "League\\Flysystem\\WhitespacePathNormalizer::normalizePath",
+       "how": "patch located in this version's file at line 24"
+      }
+     ],
+     "skipped": [
+      "src/WhitespacePathNormalizerTest.php: a test or documentation"
+     ],
+     "unmapped": [],
+     "fetched_at": "2026-11-01T04:00:51Z"
+    }
+   ],
+   "source": {
+    "path": "/Users/ntbnaren7/Dev/cyberforge-sast-dast/sca/benchmarks/composer-app/vendor/league/flysystem",
+    "identity": "install record matches the lock's version and reference",
+    "integrity": "not verified: the files were not compared with a published checksum"
+   },
+   "scope": {
+    "roots": "every app file with top-level code (2; no route map given)",
+    "packages_analysed": [
+     "league/flysystem",
+     "league/flysystem-local"
+    ],
+    "call_kinds": [
+     "namespaced and global functions (use function included)",
+     "static calls, self::, parent::, static::",
+     "new and the constructor it runs",
+     "$this, with the object's class when it was created with new",
+     "receivers typed by a parameter, property or return type, or assigned from new",
+     "inherited and trait methods",
+     "literal includes and vendor/autoload.php",
+     "callables written as literal strings or arrays"
+    ]
+   },
+   "limits": [],
+   "rank": 3
+  }
+ ],
+ "supply_chain": [],
+ "stats": {
+  "Reachable": 1,
+  "Unknown": 1,
+  "Imported-only": 0,
+  "Present-only": 1,
+  "supply_chain": 0
+ },
+ "analysis": {
+  "roots": "every app file with top-level code (2; no route map given)",
+  "packages_analysed": [
+   "league/flysystem",
+   "league/flysystem-local",
+   "symfony/http-foundation",
+   "symfony/psr-http-message-bridge",
+   "symfony/yaml"
+  ],
+  "complete": true,
+  "limit": null,
+  "assumptions": [
+   "a package calls only packages it declares as dependencies in composer.lock",
+   "library source is analysed only for packages that can reach an affected package",
+   "a call that can't be resolved, or that resolves to several targets, never supports Reachable"
+  ]
+ }
+}

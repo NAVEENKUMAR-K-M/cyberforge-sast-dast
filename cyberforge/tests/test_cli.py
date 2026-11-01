@@ -119,3 +119,8 @@ def test_a_run_through_the_command_line_lands_in_the_workspace_history(monkeypat
     [job] = restored.list_jobs()
     assert job["target_id"] == "custom" and job["status"] == "complete"
     assert job["target_spec"]["source"] == str(source.resolve())
+
+
+def test_dependency_analysis_is_on_unless_switched_off():
+    assert cli.build_request(parse("--source", "app"))["use_sca"] is True
+    assert cli.build_request(parse("--source", "app", "--no-sca"))["use_sca"] is False

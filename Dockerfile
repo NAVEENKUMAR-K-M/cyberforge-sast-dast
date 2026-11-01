@@ -24,6 +24,7 @@ RUN pip install -r requirements.txt
 
 COPY common/ common/
 COPY correlator/ correlator/
+COPY sca/ sca/
 COPY cyberforge/ cyberforge/
 COPY sast-engine/ sast-engine/
 COPY dast-engine/ dast-engine/

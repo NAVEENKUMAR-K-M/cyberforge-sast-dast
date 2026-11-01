@@ -13,6 +13,7 @@ import {
   ListFilter,
   LoaderCircle,
   Play,
+  Plus,
   RefreshCw,
   Search,
   X,
@@ -21,14 +22,21 @@ import { Badge, Button, cn } from "./components/ui";
 import {
   display,
   filterIssues,
+  formatDuration,
   locationOf,
   observation,
+  proofLevel,
+  PROOF_MEANING,
+  reviewCount,
   scanStatus,
   type Filters,
 } from "./lib";
-import type { Finding, Issue, Report, Workspace } from "./types";
+import type { Finding, Issue, Label, Report, Workspace } from "./types";
 import { ScanLauncher } from "./ScanLauncher";
 import { AIAssistant } from "./AIAssistant";
+import { Overview, type View } from "./views/Overview";
+import { DependenciesView } from "./views/Dependencies";
+import { AboutView } from "./views/About";
 
 const EMPTY_FILTERS: Filters = {
   search: "",
@@ -296,12 +304,13 @@ function IssueDetail({
           </Badge>
           {issue.investigation?.ai_assisted && (
             <span
-              className="capability-tag ai-tag"
+              className="tag"
               title="An AI-proposed follow-up test produced the runtime evidence this finding is linked on."
             >
               <BrainCircuit size={12} /> AI-assisted
             </span>
           )}
+          {issue.conflict && <span className="tag tag-warn">Conflicts with code marked safe</span>}
           <span className="muted">{issue.cwe}</span>
           {issue.stored && <span className="muted">Stored flow</span>}
           {!issue.reportable && <Badge>Held back</Badge>}
@@ -318,6 +327,22 @@ function IssueDetail({
           </span>
         </div>
       </div>
+      {!!issue.evidence.runtime.length && issue.runtime_verification && (
+        <section className="detail-section proof-section">
+          <h3>
+            Runtime proof{" "}
+            <span className={`proof-text proof-${issue.runtime_verification.level}`}>{issue.runtime_verification.level}</span>
+          </h3>
+          <p>{PROOF_MEANING[issue.runtime_verification.level]}</p>
+          <ul className="plain-list">
+            {issue.runtime_verification.checks.map((check) => (
+              <li key={check.dast_id}>
+                <span className={`proof-text proof-${check.level}`}>{check.level}</span> {check.reason}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <section className="detail-section link-explanation">
         <h3>{links.length ? "Why linked" : "Evidence status"}</h3>
         {links.length ? (
@@ -372,8 +397,8 @@ function IssueDetail({
         )}
         {issue.label === "Confirmed" && (
           <p className="qualification">
-            Confirmed means linked code and runtime findings. The observation
-            below states what the runtime test demonstrated.
+            Confirmed means linked code and runtime findings. The runtime proof
+            above says how strongly the runtime side was shown.
           </p>
         )}
       </section>
@@ -770,7 +795,9 @@ export default function App() {
   const [data, setData] = useState<Workspace | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<"findings" | "routes" | "coverage" | "review">("findings");
+  const [view, setView] = useState<View>(() => (window.location.hash ? "issues" : "overview"));
+  const [scanActive, setScanActive] = useState(false);
+  const scanDialog = useRef<HTMLDialogElement>(null);
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [review, setReview] = useState(false);
   const [selected, setSelected] = useState(() => window.location.hash.slice(1));
@@ -832,11 +859,13 @@ export default function App() {
   const issues = data ? filterIssues(data.report.issues, filters) : [];
   const issue = issues.find((i) => i.issue_id === selected) ?? issues[0];
   useEffect(() => {
-    if (issue && issue.issue_id !== selected) {
+    // Only the Issues tab selects an issue (and puts it in the address): doing it on the Overview would make a
+    // reload land on Issues instead of where the person was.
+    if (view === "issues" && issue && issue.issue_id !== selected) {
       setSelected(issue.issue_id);
       window.history.replaceState(null, "", `#${issue.issue_id}`);
     }
-  }, [issue, selected]);
+  }, [issue, selected, view]);
 
   function choose(id: string) {
     setSelected(id);
@@ -846,6 +875,17 @@ export default function App() {
   function changeFilter<K extends keyof Filters>(key: K, value: Filters[K]) {
     setFilters((f) => ({ ...f, [key]: value }));
     setReview(false);
+  }
+  function openIssue(id: string) {
+    setFilters(EMPTY_FILTERS);
+    setReview(false);
+    choose(id);
+    setView("issues");
+  }
+  function filterByLabel(label: Label) {
+    setFilters({ ...EMPTY_FILTERS, label });
+    setReview(false);
+    setView("issues");
   }
   function inspectCandidate(id: string) {
     setFilters({ ...EMPTY_FILTERS, includeHeld: true });
@@ -894,6 +934,15 @@ export default function App() {
     Number(filters.includeHeld);
   const filtered =
     filters.search || filters.label !== "All" || advancedCount > 0;
+  const needReview = reviewCount(data.report);
+  const tabs: [View, string, number | undefined][] = [
+    ["overview", "Overview", undefined],
+    ["issues", "Issues", reportable.length],
+    ["dependencies", "Dependencies", data.report.dependencies?.rows.length],
+    ["routes", "Routes", undefined],
+    ["coverage", "Coverage", undefined],
+    ...(needReview ? ([["review", "Need review", needReview]] as [View, string, number][]) : []),
+  ];
   return (
     <div className="app-shell">
       <header className="app-header">
@@ -907,6 +956,28 @@ export default function App() {
           <Badge className="local-badge">Local</Badge>
         </div>
         <div className="header-actions">
+          <Button size="small" onClick={() => scanDialog.current?.showModal()}>
+            {scanActive ? <LoaderCircle className="spin" size={14} /> : <Plus size={14} />}
+            {scanActive ? "Scan running" : "New scan"}
+          </Button>
+          <details className="export-menu">
+            <summary className="button button-outline button-small">
+              <ArrowDownToLine size={14} />
+              Export
+              <ChevronDown size={12} />
+            </summary>
+            <div className="menu-panel">
+              <a href="/api/export" download>
+                JSON report<span>.json</span>
+              </a>
+              <a href="/api/export/html" download>
+                Standalone report<span>.html</span>
+              </a>
+              <a href="/api/export/sarif" download>
+                SARIF findings<span>.sarif.json</span>
+              </a>
+            </div>
+          </details>
           <Button
             variant="ghost"
             size="small"
@@ -928,57 +999,36 @@ export default function App() {
       </header>
       <main className="main-content">
         <div className="page-heading">
-          <div>
-            <div className="eyebrow">SECURITY ANALYSIS</div>
-            <h1>Findings</h1>
-            <p className="target-line">
-              <span className="target-dot" />
-              <code>{data.scan.target || "Runtime target not recorded"}</code>
-            </p>
-          </div>
-          <details className="export-menu">
-            <summary className="button button-outline">
-              <ArrowDownToLine size={15} />
-              Export
-              <ChevronDown size={13} />
-            </summary>
-            <div className="menu-panel">
-              <a href="/api/export" download>
-                JSON report<span>.json</span>
-              </a>
-              <a href="/api/export/html" download>
-                Standalone report<span>.html</span>
-              </a>
-            <a href="/api/export/sarif" download>
-              SARIF findings<span>.sarif.json</span>
-            </a>
-            </div>
-          </details>
+          <h1>{data.scan.name}</h1>
+          <p className="target-line">
+            <code>{data.scan.target || "Runtime target not recorded"}</code>
+            <span className="heading-sep">·</span>
+            <span className={cn("scan-status", status.incomplete && "incomplete")}>
+              <span />
+              {status.label}
+            </span>
+            {data.scan.elapsed_seconds != null && (
+              <>
+                <span className="heading-sep">·</span>
+                <span>{formatDuration(data.scan.elapsed_seconds)}</span>
+              </>
+            )}
+          </p>
         </div>
-        <DemoOverview data={data} reportable={reportable} incomplete={status.incomplete} />
-        <ScanLauncher onReportReady={() => void load()} />
-        <CapabilityBoard data={data} />
         <nav className="view-nav" aria-label="Report views">
           <div className="tabs">
-            {(["findings", "routes", "coverage", "review"] as const).map((tab) => (
+            {tabs.map(([key, label, count]) => (
               <button
-                key={tab}
-                aria-current={view === tab ? "page" : undefined}
-                className={view === tab ? "active" : ""}
-                onClick={() => setView(tab)}
+                key={key}
+                aria-current={view === key ? "page" : undefined}
+                className={view === key ? "active" : ""}
+                onClick={() => setView(key)}
               >
-                {tab === "findings" ? "Findings" : tab === "routes" ? "Routes" : tab === "coverage" ? "Coverage" : "Need review"}
-                {tab === "findings" && <span>{reportable.length}</span>}
-                {tab === "review" && <span>{data.report.conflicts.length + data.report.issues.filter((item) => item.ambiguous).length}</span>}
+                {label}
+                {count !== undefined && <span>{count}</span>}
               </button>
             ))}
           </div>
-          <span
-            className={cn("scan-status", status.incomplete && "incomplete")}
-          >
-            <span />
-            {status.label}
-          </span>
         </nav>
         {error && (
           <div className="notice notice-warning" role="alert">
@@ -994,7 +1044,28 @@ export default function App() {
             </button>
           </div>
         )}
-        {view === "routes" ? (
+        {view === "overview" ? (
+          <Overview
+            data={data}
+            onOpenIssue={openIssue}
+            onFilterLabel={filterByLabel}
+            onGo={setView}
+            followUp={
+              <AIAssistant
+                scanId={data.scan.scan_id ?? null}
+                example={data.scan.example}
+                investigationRun={data.scan.investigation_run}
+                investigations={data.report.investigations}
+                titles={Object.fromEntries(data.report.issues.map((i) => [i.issue_id, `${i.title} · ${locationOf(i)}`]))}
+                onComplete={load}
+              />
+            }
+          />
+        ) : view === "dependencies" ? (
+          <DependenciesView dependencies={data.report.dependencies} />
+        ) : view === "about" ? (
+          <AboutView />
+        ) : view === "routes" ? (
           <RoutesView scanId={data.scan.scan_id ?? null} />
         ) : view === "coverage" ? (
           <Coverage
@@ -1002,15 +1073,13 @@ export default function App() {
             onShowHeld={() => {
               setFilters({ ...EMPTY_FILTERS, includeHeld: true });
               setReview(false);
-              setView("findings");
+              setView("issues");
             }}
           />
         ) : view === "review" ? (
           <Review report={data.report} />
         ) : (
           <>
-            <AIAssistant scanId={data.scan.scan_id ?? null} example={data.scan.example}
-              investigationRun={data.scan.investigation_run} investigations={data.report.investigations} onComplete={load} />
             <div className="summary-line">
               <button
                 className={filters.label === "All" && !review ? "current" : ""}
@@ -1231,9 +1300,12 @@ export default function App() {
                               >
                                 {i.label}
                               </Badge>
+                              {proofLevel(i) && (
+                                <small className={`proof-text proof-${proofLevel(i)}`}>{proofLevel(i)}</small>
+                              )}
                               {i.investigation?.ai_assisted && (
                                 <span
-                                  className="capability-tag ai-tag"
+                                  className="tag"
                                   title="An AI-proposed follow-up test produced the runtime evidence this finding is linked on."
                                 >
                                   <BrainCircuit size={11} /> AI-assisted
@@ -1341,69 +1413,39 @@ export default function App() {
         <footer className="app-footer">
           <span>
             CyberForge<span className="footer-separator">/</span>Source +
-            runtime analysis
+            runtime analysis<span className="footer-separator">/</span>
+            <button type="button" className="footer-link" onClick={() => setView("about")}>About</button>
           </span>
           <span>Reports stay on this machine</span>
         </footer>
       </main>
+      <dialog
+        ref={scanDialog}
+        className="scan-dialog scan-launch-dialog"
+        aria-label="Run a scan"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) scanDialog.current?.close();
+        }}
+      >
+        <Button
+          variant="ghost"
+          size="icon"
+          className="dialog-close"
+          onClick={() => scanDialog.current?.close()}
+          aria-label="Close"
+        >
+          <X size={18} />
+        </Button>
+        <ScanLauncher
+          onActiveChange={setScanActive}
+          onReportReady={() => {
+            void load();
+            setView("overview");
+            scanDialog.current?.close();
+          }}
+        />
+      </dialog>
       <ScanDetails data={data} dialog={dialog} />
     </div>
   );
-}
-
-function DemoOverview({ data, reportable, incomplete }: { data: Workspace; reportable: Issue[]; incomplete: boolean }) {
-  const count = (label: string) => reportable.filter((issue) => issue.label === label).length;
-  const seconds = data.scan.elapsed_seconds;
-  const runtime = seconds == null ? "Not recorded" : `${seconds.toFixed(1)} sec`;
-  const live = Boolean(data.scan.scan_id) && !data.scan.example;
-  return <section className="demo-overview" aria-label="Scan overview">
-    <div className="demo-flow" aria-label="Scan, correlate, investigate workflow">
-      <span className="capability-tag core-tag">Core · Scan</span><span aria-hidden="true">→</span>
-      <span className="capability-tag core-tag">Core · Correlate + auto-verify</span><span aria-hidden="true">→</span>
-      <span className="capability-tag ai-tag">Bonus · AI-assisted, when a provider is configured</span>
-      <span className={`report-kind ${data.scan.example ? "example-kind" : live ? "live-kind" : "imported-kind"}`}>
-        {data.scan.example ? "EXAMPLE REPORT · SAMPLE DATA" : live ? "LIVE SCAN REPORT" : "IMPORTED REPORT"}
-      </span>
-    </div>
-    <div className="demo-metrics">
-      <div><span>Target</span><code>{data.scan.target || data.scan.name}</code></div>
-      <div><span>Scan status</span><strong>{incomplete ? "Incomplete · review coverage" : "Report available"}</strong></div>
-      <div><span>Total run time</span><strong>{runtime}</strong></div>
-      <div><span>Confirmed</span><strong>{count("Confirmed")}</strong></div>
-      <div><span>Code only</span><strong>{count("Code only")}</strong></div>
-      <div><span>Runtime only</span><strong>{count("Runtime only")}</strong></div>
-      <div><span>Need review</span><strong>{data.report.conflicts.length + reportable.filter((issue) => issue.ambiguous).length}</strong></div>
-    </div>
-    <div className="capability-legend" aria-label="Capability legend">
-      <span><i className="legend-dot core-dot" /> Core PRD</span><span><i className="legend-dot bonus-dot" /> Bonus</span><span><i className="legend-dot ai-dot" /> AI-assisted, opt-in</span>
-    </div>
-  </section>;
-}
-
-function CapabilityBoard({ data }: { data: Workspace }) {
-  const limited = data.scan.target_id === "juice_shop";
-  const core = [
-    ["FR-1–FR-3", "SAST + DAST findings, shared report, CWE", "Available"],
-    ["FR-4–FR-5", "Source route map and code-to-runtime correlation", limited ? "Target-limited · JavaScript SAST unavailable" : "Available for supported source targets"],
-    ["FR-6–FR-9", "Duplicate grouping, issue labels, evidence, risk ranking", "Available"],
-    ["FR-10", "Scan controls and combined report", "Available"],
-  ];
-  const bonus = [
-    ["B-1", "Auto-verify Code only findings at runtime", "Available · runs automatically as part of correlation, bounded probes"],
-    ["B-2–B-4", "Suppression, link explanations, fix guidance", "Available where evidence supports it"],
-    ["B-5–B-6", "Scan comparison, SARIF, CI gate", "Available"],
-    ["B-7", "Language and framework support", "Target-limited · PHP and Python SAST; Juice Shop DAST"],
-  ];
-  return <details className="capability-board">
-    <summary><strong>PRD capability board</strong><span>Core and bonus delivery status for this workspace and target</span><ChevronRight size={15} /></summary>
-    <div className="capability-columns">
-      <div><h3><span className="capability-tag core-tag">Core · FR-1–FR-10</span></h3>{core.map(([id, name, state]) => <CapabilityRow key={id} id={id} name={name} state={state} tone="core" />)}</div>
-      <div><h3><span className="capability-tag bonus-tag">Bonus · B-1–B-7</span></h3>{bonus.map(([id, name, state]) => <CapabilityRow key={id} id={id} name={name} state={state} tone="bonus" />)}</div>
-      <div><h3><span className="capability-tag ai-tag">AI-assisted · automatic when configured</span></h3><CapabilityRow id="AI" name="AI-proposed follow-up test for unresolved findings" state="Runs automatically alongside auto-verify when a provider is configured; a model proposal never confirms a finding by itself" tone="ai" /></div>
-    </div>
-  </details>;
-}
-
-function CapabilityRow({ id, name, state, tone }: { id: string; name: string; state: string; tone: string }) {
-  return <div className={`capability-row ${tone}`}><strong>{id}</strong><span>{name}</span><small>{state}</small></div>;
 }

@@ -10,13 +10,13 @@ import time
 from collections import deque
 
 ASSUMPTIONS = {
-    "new": "`new X` runs X's constructor",
+    "new": "new X runs X's constructor",
     "$this": "a call on $this runs in the class the object was created as, when that is known",
     "typed receiver": "a receiver's declared type is the object passed in (every override we index was considered)",
     "receiver created with new": "a method called on an object created with new runs that class's method",
     "function": "a function call resolves the way PHP does: the current namespace first, then the global one",
     "include": "a literal include runs the included file",
-    "autoload": "loading vendor/autoload.php runs every package's autoload `files`",
+    "autoload": "loading vendor/autoload.php runs every package's autoload files",
     "static call": "a static call runs the named class's method",
     "self::": "self:: runs the declaring class's method",
     "parent::": "parent:: runs the parent class's method",
