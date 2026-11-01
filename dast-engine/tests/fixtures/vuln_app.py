@@ -5,6 +5,7 @@ outside pytest, and only ever reachable on 127.0.0.1.
 from __future__ import annotations
 
 import os
+import posixpath
 import sqlite3
 import subprocess
 import sys
@@ -235,10 +236,15 @@ def guarded_redirect():
 
 @app.route("/filtered_traversal")
 def filtered_traversal():
-    # Removes "../" once, so "....//" turns back into "../".
-    page = request.args.get("page", "readme.txt").replace("../", "")
-    target = os.path.normpath(os.path.join(_BASE_DIR, page.lstrip("/"))).replace("\\", "/")  # not realpath: macOS links /etc
-    if target == "/etc/passwd":  # only a path that really climbs out of the folder
+    # Models a naive single-pass "../" filter the way it would behave on the Linux server this is meant
+    # to stand in for (the real benchmark apps run in Linux containers, where "\" is just a filename
+    # character, not a separator) -- using posixpath instead of os.path keeps that true regardless of
+    # which OS actually runs this test, so only a forward-slash bypass like "....//" works here, and a
+    # backslash sequence or an absolute/drive-letter path (which os.path.join would honor as an override
+    # on Windows) does not.
+    page = request.args.get("page", "readme.txt").replace("../", "").lstrip("/")
+    target = posixpath.normpath(posixpath.join("/sandbox", page))
+    if target == "/etc/passwd":  # only a path that really climbs out of the sandbox
         return "root:x:0:0:root:/root:/bin/bash\n"
     return "not found", 404
 

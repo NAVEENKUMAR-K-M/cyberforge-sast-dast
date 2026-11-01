@@ -76,8 +76,39 @@ docker compose -f sast-engine/benchmarks/pyshop/docker-compose.yml down
 Run these from the repo root:
 
 ```sh
-(cd sast-engine && .venv/bin/python -m pytest)        # SAST
-(cd dast-engine && .venv/bin/python -m pytest)        # DAST
-sast-engine/.venv/bin/python -m pytest common/tests   # the shared format
+(cd sast-engine && .venv/bin/python -m pytest)           # SAST
+(cd dast-engine && .venv/bin/python -m pytest)           # DAST
+sast-engine/.venv/bin/python -m pytest common/tests      # the shared format
 sast-engine/.venv/bin/python -m pytest correlator/tests  # the correlator
+web/.venv/bin/python -m pytest web/tests                 # the analyst workspace's API (needs pytest, httpx)
+(cd web && npm test -- --run)                             # the analyst workspace's UI
 ```
+
+### Latest run (2026-11-01)
+
+| Suite | Result |
+|---|---|
+| sast-engine | 349 passed |
+| dast-engine | 160 passed, 1 failed |
+| correlator | 159 passed |
+| common | 16 passed |
+| web (API, pytest) | 12 passed |
+| web (UI, vitest) | 20 passed |
+| **Total** | **716 passed, 1 failed** |
+
+The one failure, `dast-engine/tests/test_main_cli.py::test_verify_tries_a_hinted_traversal_prefix_first`,
+is a test-environment issue, not a product bug: it shells out to `main.py verify` with a route argument
+that Git Bash's path conversion rewrites into a Windows path before Python ever sees it, on Windows only.
+It fails the same way with no code changes at all.
+
+Two real, non-pre-existing issues surfaced and were fixed while producing this run:
+- `dast-engine/tests/fixtures/vuln_app.py`'s `/filtered_traversal` fixture used `os.path`/`os.path.join`
+  for its traversal check, which on Windows treats `\` as a separator and honors a drive letter as an
+  absolute-path override — letting two bypasses unrelated to the test's actual target ("backslash
+  traversal", "`C:\`-prefixed path") win before the intended "`....//`" filter-bypass technique could.
+  Rewritten with `posixpath` against a virtual root, so the fixture behaves like the Linux containers the
+  real benchmark apps run in, regardless of which OS runs the test.
+- `web/tests/test_server.py` read the real, developer-machine `out/scans/` history through a module-level
+  constant with no test isolation, so a report a test asked for by path could be silently outranked by
+  whatever scan happened to be newest on disk. Added an autouse fixture that points scan history at a
+  temp directory for the whole file.

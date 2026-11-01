@@ -1,8 +1,19 @@
 import json
 
+import pytest
 from fastapi.testclient import TestClient
 
+from web import scan_manager
 from web.server import WEB, create_app
+
+
+@pytest.fixture(autouse=True)
+def isolated_scan_history(tmp_path, monkeypatch):
+    """ScanManager reads real scan history from a module-level constant, not an instance argument, so
+    without this a developer's own past scans on this machine silently outrank the report a test asks
+    for (get_report_path prefers scans.latest_report over the explicit path) and the test fails for a
+    reason that has nothing to do with the code under test."""
+    monkeypatch.setattr(scan_manager, "OUT", tmp_path / "scan-history")
 
 
 def report_file(tmp_path):
