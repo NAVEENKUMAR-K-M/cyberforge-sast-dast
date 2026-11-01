@@ -122,6 +122,54 @@ def _detail(issue: dict, links: dict, investigations: dict) -> str:
             f"{_investigation(investigations[issue['issue_id']]) if issue['issue_id'] in investigations else ''}</section>")
 
 
+def _enrichment(advisory: dict) -> tuple[str, str, str]:
+    kev = advisory.get("kev") or {}
+    epss = advisory.get("epss") or {}
+    cvss = advisory.get("cvss") or {}
+    kev_text = {"listed": f"listed {kev.get('date_added') or ''}", "not listed": "no"}.get(kev.get("status"), kev.get("status", "?"))
+    epss_text = f"{epss['epss']:.3f}" if epss.get("status") == "ok" else epss.get("status", "?")
+    cvss_text = (f"{cvss['score']} (v{cvss['version']})" if cvss.get("score") is not None
+                 else ("vector only" if cvss.get("vector") else "none published"))
+    return _e(kev_text), _e(epss_text), _e(cvss_text)
+
+
+def _dependencies(section: dict) -> str:
+    """The SCA rows, apart from the issues: whether the app can reach each affected dependency's vulnerable function."""
+    if not section:
+        return ""
+    rows, details = [], []
+    for row in section["rows"]:
+        advisory = row["advisory"]
+        kev, epss, cvss = _enrichment(advisory)
+        rows.append(f'<tr><td>{row.get("rank", "")}</td><td class="label">{_e(row["status"])}</td>'
+                    f'<td><code>{_e(row["package"])}@{_e(row["version"])}</code></td>'
+                    f'<td><a href="{_e(advisory.get("url") or "")}">{_e(advisory["id"])}</a></td>'
+                    f'<td>{kev}</td><td>{epss}</td><td>{cvss}</td><td>{_e(row["reason"])}</td></tr>')
+        if row.get("path"):
+            steps = "".join(f"<li><code>{_e(s['function'])}</code> <span class=\"muted\">{_e(s['package'])}"
+                            + (f", called at {_e(s['called_from']['file'])}:{s['called_from']['line']} "
+                               f"({_e(s['called_from']['how'])})" if s.get("called_from") else "") + "</span></li>"
+                            for s in row["path"])
+            assumptions = "".join(f"<li>{_e(a)}</li>" for a in row.get("assumptions") or [])
+            limits = "".join(f"<li>{_e(x)}</li>" for x in row.get("limits") or [])
+            details.append(f'<details><summary>{_e(row["status"])}: {_e(row["package"])} {_e(advisory["id"])}</summary>'
+                           f"<ol>{steps}</ol>"
+                           + (f"<p>Assumed:</p><ul>{assumptions}</ul>" if assumptions else "")
+                           + (f"<p>Limits:</p><ul>{limits}</ul>" if limits else "") + "</details>")
+    lookup = section.get("advisory_lookup") or {}
+    status = (f"Advisories from {_e(lookup.get('source', 'OSV'))}, fetched {_e(lookup.get('fetched_at') or '')}."
+              if lookup.get("status") == "ok" else
+              f"<strong>Advisory lookup unavailable</strong> ({_e(lookup.get('error') or '')}): which dependencies are affected is unknown.")
+    supply = "".join(f"<li>[{_e(f['kind'])}] {_e(f['title'])}: <span class=\"muted\">{_e(f['evidence'])}</span></li>"
+                     for f in section.get("supply_chain") or [])
+    table = ("<table><tr><th>#</th><th>Status</th><th>Package</th><th>Advisory</th><th>KEV</th><th>EPSS</th><th>CVSS</th>"
+             f"<th>Why</th></tr>{''.join(rows)}</table>") if rows else "<p>No affected dependency versions.</p>"
+    return (f"<h2>Dependencies</h2><p>{status} Reachable means a static call path exists from an entry point to the "
+            "affected function, not a demonstrated exploit. Unknown is never a reassurance.</p>"
+            f"{table}{''.join(details)}"
+            + (f"<h3>Supply chain</h3><ul>{supply}</ul>" if supply else ""))
+
+
 def render(result: dict) -> str:
     stats = result["stats"]
     reported = [i for i in result["issues"] if i["reportable"]]
@@ -149,6 +197,7 @@ Confirmed issues come first, then the highest CVSS v3.0 score.</p>
 {held_note}
 {('<h2>Notes</h2><ul>' + notes + '</ul>') if notes else ''}
 {('<h2>For review</h2><p>A runtime test reported these, but the code was marked safe.</p><ul>' + conflicts + '</ul>') if conflicts else ''}
+{_dependencies(result.get("dependencies"))}
 <h2>Details</h2>
 {''.join(_detail(i, links, investigations) for i in reported)}
 </body></html>

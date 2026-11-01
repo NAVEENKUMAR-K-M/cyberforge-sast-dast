@@ -8,6 +8,7 @@ We are winning this gang!
 | [dast-engine/](dast-engine/) | Dynamic scanner: tests the running app | [README](dast-engine/README.md) |
 | [common/](common/) | The one finding format both scanners write, for the correlator to read | [FORMAT.md](common/FORMAT.md) |
 | [correlator/](correlator/) | Joins both reports into one issue per bug: Confirmed, Code only or Runtime only | [README](correlator/README.md) |
+| [sca/](sca/) | Reachability-aware SCA (bonus): can the app reach a vulnerable library function? Composer apps | [README](sca/README.md) |
 | [web/](web/) | Local analyst workspace: findings, source/runtime evidence, and scan coverage | [README](web/README.md) |
 
 ## Analyst interface
@@ -80,6 +81,7 @@ Run these from the repo root:
 (cd dast-engine && .venv/bin/python -m pytest)           # DAST
 sast-engine/.venv/bin/python -m pytest common/tests      # the shared format
 sast-engine/.venv/bin/python -m pytest correlator/tests  # the correlator
+sast-engine/.venv/bin/python -m pytest sca/tests         # reachability-aware SCA
 web/.venv/bin/python -m pytest web/tests                 # the analyst workspace's API (needs pytest, httpx)
 (cd web && npm test -- --run)                             # the analyst workspace's UI
 ```

@@ -135,6 +135,7 @@ Every value is HTML-escaped, since payloads and snippets are attack strings.
 [issues.schema.json](issues.schema.json) defines the file:
 - **`issues`:** in ranked order, with `rank`, label, CWE, highest scanner severity, `cvss` (vector, base and temporal scores, rating), `risk_score` (the temporal score) and `risk_factors`, merged routes and parameters, and full copies of every member finding under `evidence`.
 - **`links`:** what matched and how (exact route, alias, template, or stored-write).
+- **`dependencies`** (only with `--sca out/sca/sca.json`): the reachability-aware SCA results from [sca/](../sca/README.md), in their own section of the file and the page. They never enter linking, labels or the issue ranking.
 - **`conflicts`, `suppressed`, `diagnostics`, `stats`.** `stats.runtime_coverage` copies DAST's coverage numbers. When the runtime scan didn't test everything, a diagnostic says a Code only issue means no proof was found, not that it was tested and found safe.
 
 ## Results

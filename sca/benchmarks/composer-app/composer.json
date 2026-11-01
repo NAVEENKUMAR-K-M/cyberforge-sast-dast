@@ -1,0 +1,25 @@
+{
+    "name": "cyberforge/sca-benchmark",
+    "description": "SCA reachability benchmark: deliberately pins affected dependency versions.",
+    "type": "project",
+    "require": {
+        "php": ">=8.2",
+        "symfony/http-foundation": "7.4.18",
+        "symfony/psr-http-message-bridge": "7.4.8",
+        "nyholm/psr7": "1.8.2",
+        "nyholm/psr7-server": "1.1.0",
+        "symfony/yaml": "7.4.17",
+        "league/flysystem": "3.35.2"
+    },
+    "config": {
+        "allow-plugins": false,
+        "platform": {
+            "php": "8.4.1"
+        },
+        "policy": {
+            "advisories": {
+                "block": false
+            }
+        }
+    }
+}

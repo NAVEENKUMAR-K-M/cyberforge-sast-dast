@@ -6,7 +6,7 @@ the route, parameter or weakness, and everything it says passes `loop.check_plan
 What it returns is never a link; the result of the test is matched by the same rules as any finding.
 
 Only the standard library is used. The key is read from the environment (GROQ_API_KEY, or OPENAI_API_KEY),
-which correlator/env.py fills from a .env file; it is never written anywhere else.
+which common/env.py fills from a .env file; it is never written anywhere else.
 Source code leaves the machine: the handler file named by the finding (and up to two files from its trace)
 is sent to the API, with obvious secrets removed.
 """
